@@ -34,9 +34,11 @@
 
 // module.exports = new GoldRateService();
 
-
 const { GoldRate } = require('../../models');
 
+/**
+ * Create Gold Rate
+ */
 const create = async (payload) => {
 
   const goldRate = await GoldRate.create(payload);
@@ -44,13 +46,21 @@ const create = async (payload) => {
   return goldRate;
 };
 
+/**
+ * Get All Gold Rates
+ */
 const getAll = async () => {
 
-  const goldRates = await GoldRate.findAll();
+  const goldRates = await GoldRate.findAll({
+    order: [['createdAt', 'DESC']],
+  });
 
   return goldRates;
 };
 
+/**
+ * Get Gold Rate By ID
+ */
 const getById = async (id) => {
 
   const goldRate = await GoldRate.findByPk(id);
@@ -62,6 +72,9 @@ const getById = async (id) => {
   return goldRate;
 };
 
+/**
+ * Update Gold Rate
+ */
 const update = async (id, payload) => {
 
   const goldRate = await GoldRate.findByPk(id);
@@ -75,6 +88,9 @@ const update = async (id, payload) => {
   return goldRate;
 };
 
+/**
+ * Delete Gold Rate
+ */
 const deleteGoldRate = async (id) => {
 
   const goldRate = await GoldRate.findByPk(id);

@@ -25,6 +25,10 @@ const orderRoutes = require('./modules/order/order.routes');
 const chitfundRoutes = require('./modules/chitfund/chitfund.routes');
 const goldrateRoutes = require('./modules/goldrate/goldrate.routes');
 const notificationRoutes = require('./modules/notification/notification.routes');
+const initNotificationCron = require('./modules/notification/notification.cron');
+
+// Initialize Cron Schedulers
+initNotificationCron();
 
 // Mount Routes
 app.use('/api/customers', customerRoutes);

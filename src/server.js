@@ -9,7 +9,7 @@ const startServer = async () => {
   await connectDB();
 
   // 2. Sync Models (Force: false prevents data loss)
-  await db.sequelize.sync({ force: false });
+  await db.sequelize.sync({ alter: true });
   console.log('✅ Database Models Synced.');
 
   // 3. Start Listening

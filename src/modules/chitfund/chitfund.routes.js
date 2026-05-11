@@ -1,7 +1,8 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const ChitfundController = require('./chitfund.controller');
-const chitfundValidation = require('./chitfund.validation');
+
+const ChitfundController = require("./chitfund.controller");
+const chitfundValidation = require("./chitfund.validation");
 
 const validate = (schema) => (req, res, next) => {
   const { error } = schema.validate(req.body);
@@ -9,13 +10,19 @@ const validate = (schema) => (req, res, next) => {
   next();
 };
 
-/**
- * Chit Fund Routes
- */
-router.post('/', validate(chitfundValidation.create), ChitfundController.create);
-router.get('/', ChitfundController.getAll);
-router.get('/:id', ChitfundController.getById);
-router.patch('/:id', validate(chitfundValidation.update), ChitfundController.update);
-router.delete('/:id', ChitfundController.delete);
+// CREATE
+router.post("/", validate(chitfundValidation.create), ChitfundController.create);
+
+// GET ALL
+router.get("/", ChitfundController.getAll);
+
+// GET BY ID
+router.get("/:id", ChitfundController.getById);
+
+// UPDATE
+router.put("/:id", validate(chitfundValidation.update), ChitfundController.update);
+
+// DELETE
+router.delete("/:id", ChitfundController.delete);
 
 module.exports = router;

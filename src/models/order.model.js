@@ -41,9 +41,17 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.ENUM('Pending', 'Processing', 'Completed', 'Cancelled'),
       defaultValue: 'Pending',
     },
+    customerId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'customers',
+        key: 'id',
+      },
+    },
   }, {
     timestamps: true,
-    tableName: 'orders',
+    tableName: 'jewelry_orders',
   });
 
   return Order;

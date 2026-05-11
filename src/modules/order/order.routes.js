@@ -15,6 +15,7 @@ const validate = (schema) => (req, res, next) => {
 router.post('/', validate(orderValidation.create), OrderController.create);
 router.get('/', OrderController.getAll);
 router.get('/:id', OrderController.getById);
+router.put('/:id', OrderController.update);
 router.patch('/:id', validate(orderValidation.update), OrderController.update);
 router.delete('/:id', OrderController.delete);
 

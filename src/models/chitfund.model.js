@@ -36,6 +36,14 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATEONLY,
       defaultValue: DataTypes.NOW,
     },
+    customerId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'customers',
+        key: 'id',
+      },
+    },
   }, {
     timestamps: true,
     tableName: 'chit_funds',
