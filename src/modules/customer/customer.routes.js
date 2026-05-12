@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
-<<<<<<< HEAD
 const CustomerController = require('./customer.controller');
 const customerValidation = require('./customer.validation');
+const authMiddleware = require('../../shared/middleware/auth.middleware');
+const authorizeRoles = require('../../shared/middleware/role.middleware');
 
 /**
  * Validation Middleware Helper
@@ -13,42 +14,34 @@ const validate = (schema) => (req, res, next) => {
   next();
 };
 
+// All routes require authentication
+router.use(authMiddleware);
+
 /**
  * Customer Routes
  */
-router.post('/', validate(customerValidation.create), CustomerController.create);
+router.get('/search', CustomerController.search);
 router.get('/', CustomerController.getAll);
 router.get('/:id', CustomerController.getById);
-router.patch('/:id', validate(customerValidation.update), CustomerController.update);
-router.delete('/:id', CustomerController.delete);
-=======
-const customerController = require('./customer.controller');
-const authMiddleware = require('../../shared/middleware/auth.middleware');
-const authorizeRoles = require('../../shared/middleware/role.middleware');
-
-router.use(authMiddleware);
-
-router.get('/search', customerController.searchCustomers);
-router.get('/', customerController.getCustomers);
-router.get('/:id', customerController.getCustomer);
 
 router.post(
-  '/',
+  '/', 
   authorizeRoles('SUPER_ADMIN', 'ADMIN'),
-  customerController.createCustomer
+  validate(customerValidation.create), 
+  CustomerController.create
 );
 
-router.put(
-  '/:id',
+router.patch(
+  '/:id', 
   authorizeRoles('SUPER_ADMIN', 'ADMIN'),
-  customerController.updateCustomer
+  validate(customerValidation.update), 
+  CustomerController.update
 );
 
 router.delete(
-  '/:id',
+  '/:id', 
   authorizeRoles('SUPER_ADMIN'),
-  customerController.deleteCustomer
+  CustomerController.delete
 );
->>>>>>> 80625032da0853259748299ae1b213d25b9ac9d0
 
 module.exports = router;

@@ -1,48 +1,32 @@
-<<<<<<< HEAD
-const { sequelize } = require('../config/db.config');
-const { Sequelize, DataTypes } = require('sequelize');
-
-const db = {};
-
-db.Sequelize = Sequelize;
-db.sequelize = sequelize;
-
-// Import Models (We will add more as we create modules)
-db.Customer = require('./customer.model.js')(sequelize, DataTypes);
-db.Order = require('./order.model.js')(sequelize, DataTypes);
-db.ChitFund = require('./chitfund.model.js')(sequelize, DataTypes);
-db.GoldRate = require('./goldrate.model.js')(sequelize, DataTypes);
-db.Notification = require('./notification.model.js')(sequelize, DataTypes);
-db.GoldLoan = require('./goldloan.model.js')(sequelize, DataTypes);
-
-// Define Associations
-db.Customer.hasMany(db.Order, { foreignKey: 'customerId', as: 'orders' });
-db.Order.belongsTo(db.Customer, { foreignKey: 'customerId', as: 'customer' });
-
-db.Customer.hasMany(db.ChitFund, { foreignKey: 'customerId', as: 'chitFunds' });
-db.ChitFund.belongsTo(db.Customer, { foreignKey: 'customerId', as: 'customer' });
-
-db.Customer.hasMany(db.GoldLoan, { foreignKey: 'customerId', as: 'goldLoans' });
-db.GoldLoan.belongsTo(db.Customer, { foreignKey: 'customerId', as: 'customer' });
-
-db.Customer.hasMany(db.Notification, { foreignKey: 'customerId', as: 'notifications' });
-db.Notification.belongsTo(db.Customer, { foreignKey: 'customerId', as: 'customer' });
-=======
 const fs = require('fs');
 const path = require('path');
-const Sequelize = require('sequelize');
-const sequelize = require('../config/db');
+const { Sequelize, DataTypes } = require('sequelize');
+const { sequelize } = require('../config/db.config');
+
 const db = {};
 
+// Load all models dynamically
 fs.readdirSync(__dirname)
   .filter(file => {
     return (file.indexOf('.') !== 0) && (file !== 'index.js') && (file.slice(-9) === '.model.js');
   })
   .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
-    db[model.name] = model;
+    const modelDef = require(path.join(__dirname, file));
+    let model;
+    
+    // Support both function pattern and direct model exports
+    if (typeof modelDef === 'function' && !modelDef.prototype?.constructor) {
+      model = modelDef(sequelize, DataTypes);
+    } else {
+      model = modelDef;
+    }
+    
+    if (model && model.name) {
+      db[model.name] = model;
+    }
   });
 
+// Call associate if defined in models
 Object.keys(db).forEach(modelName => {
   if (db[modelName].associate) {
     db[modelName].associate(db);
@@ -51,6 +35,5 @@ Object.keys(db).forEach(modelName => {
 
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
->>>>>>> 80625032da0853259748299ae1b213d25b9ac9d0
 
 module.exports = db;

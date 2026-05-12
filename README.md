@@ -1,5 +1,6 @@
-<<<<<<< HEAD
 # SDRS Gold Finance & Jewelry ERP System - Backend API
+
+Enterprise-level clean and scalable backend for SDRS Gold Finance & Jewelry ERP.
 
 ## Tech Stack
 - **Node.js & Express.js**: Backend framework
@@ -8,67 +9,39 @@
 - **JWT**: Authentication
 - **Joi**: Input validation
 
+## Features
+- **Modular Architecture**: Easy to maintain and scale.
+- **Role-Based Access Control (RBAC)**: Secure access for Super Admin, Admin, and Staff.
+- **Multi-language Support**: i18next integration for local languages.
+- **Comprehensive Modules**: Gold Loan, Chit Fund, Inventory, and Jewelry Orders.
+
 ## Installation
 1. Update `.env` with your PostgreSQL credentials.
 2. Run `npm install`
 3. Run `npm run dev`
 
-## API Endpoints (Postman Ready)
+## API Endpoints
 
 ### 1. Customer Management
 - `POST /api/customers` - Create a customer
 - `GET /api/customers` - Get all customers
+- `GET /api/customers/search` - Search customers
 - `GET /api/customers/:id` - Get single customer
 - `PATCH /api/customers/:id` - Update customer
 - `DELETE /api/customers/:id` - Delete customer
 
 ### 2. Jewelry Orders
 - `POST /api/orders` - Place new order
-- `GET /api/orders` - View all orders (includes customer details)
-- `GET /api/orders/:id` - View single order
+- `GET /api/orders` - View all orders
 - `PATCH /api/orders/:id` - Update order status
-- `DELETE /api/orders/:id` - Remove order
 
 ### 3. Chit Funds
 - `POST /api/chit-funds` - New subscription
 - `GET /api/chit-funds` - View all subscriptions
-- `GET /api/chit-funds/:id` - View single subscription
-- `PATCH /api/chit-funds/:id` - Update payment status
 
 ### 4. Gold Rates
 - `POST /api/gold-rates` - Update today's rate
-- `GET /api/gold-rates/latest` - Get current rates (24K, 22K, 18K)
-- `GET /api/gold-rates/history` - View rate history
-
-### 5. Notifications
-- `POST /api/notifications/send-custom` - Send custom Email/WhatsApp
+- `GET /api/gold-rates/latest` - Get current rates
 
 ## Security
-To protect a route, add the `authMiddleware` to the route definition in `src/modules/<module>/<module>.routes.js`.
-=======
-# SDRS Gold Finance ERP - Backend
-
-Enterprise-level clean and scalable backend for SDRS Gold Finance ERP.
-
-## Tech Stack
-- Node.js
-- Express.js
-- PostgreSQL
-- Sequelize ORM
-
-## Features
-- Modular Architecture
-- Role-Based Access Control (RBAC)
-- Gold Loan Management
-- Chit Fund Management
-- Payment Integration
-- Automated Notifications
-- Real-time Gold Rates
-
-## Setup
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Configure environment variables in `.env`
-4. Run migrations/seeds: `npm run seed`
-5. Start development server: `npm run dev`
->>>>>>> 80625032da0853259748299ae1b213d25b9ac9d0
+Routes are protected using `authMiddleware` and `roleMiddleware`. Ensure you include a Bearer Token in the Authorization header.
