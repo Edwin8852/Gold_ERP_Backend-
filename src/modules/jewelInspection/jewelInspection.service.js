@@ -1,4 +1,4 @@
-const JewelInspection = require('../../models/jewelInspection.model');
+const { JewelInspection } = require('../../models');
 
 const createInspection = async (inspectionData, userId) => {
   const inspection = await JewelInspection.create({

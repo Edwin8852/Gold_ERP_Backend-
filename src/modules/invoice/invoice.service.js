@@ -1,4 +1,4 @@
-const Invoice = require('../../models/invoice.model');
+const { Invoice } = require('../../models');
 
 const generateInvoiceNumber = () => {
   return `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;

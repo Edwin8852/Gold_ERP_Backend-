@@ -10,27 +10,66 @@ module.exports = (sequelize, DataTypes) => {
     firstName: {
       type: DataTypes.STRING,
       allowNull: false,
+      field: 'firstName'
     },
     lastName: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
+      field: 'lastName'
+    },
+    mobile: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
     },
     email: {
       type: DataTypes.STRING,
-      allowNull: false,
+      allowNull: true,
       unique: true,
       validate: {
         isEmail: true,
       },
     },
+    customerCode: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      unique: true,
+      field: 'customerCode'
+    },
     password: {
+
       type: DataTypes.STRING,
       allowNull: false,
     },
     role: {
-      type: DataTypes.ENUM('SUPER_ADMIN', 'ADMIN', 'USER'),
-      defaultValue: 'USER',
+      type: DataTypes.ENUM('SUPER_ADMIN', 'ADMIN', 'CUSTOMER'),
+      defaultValue: 'CUSTOMER',
+    },
+    isFirstLogin: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: true,
+      field: 'isFirstLogin'
+    },
+    status: {
+      type: DataTypes.STRING,
+      defaultValue: 'ACTIVE',
+    },
+    isKycVerified: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: 'isKycVerified'
+    },
+    profileImage: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'profileImage'
+    },
+    passwordUpdatedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'passwordUpdatedAt'
     }
+
   }, {
     timestamps: true,
     tableName: 'users',
@@ -48,9 +87,14 @@ module.exports = (sequelize, DataTypes) => {
     }
   });
 
-  User.prototype.comparePassword = async function(password) {
-    return await bcrypt.compare(password, this.password);
+  User.prototype.comparePassword = async function(candidatePassword) {
+    return await bcrypt.compare(candidatePassword, this.password);
+  };
+
+  User.associate = (models) => {
+    User.belongsTo(models.Customer, { foreignKey: 'customerCode', targetKey: 'customerCode', as: 'customer' });
   };
 
   return User;
 };
+

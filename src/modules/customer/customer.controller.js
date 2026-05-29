@@ -8,8 +8,13 @@ const ApiResponse = require('../../shared/utils/apiResponse');
 class CustomerController {
   async create(req, res, next) {
     try {
-      const customer = await CustomerService.createCustomer(req.body, req.user?.id);
-      return ApiResponse.success(res, 'Customer created successfully', customer, 201);
+      const { customer, credentials } = await CustomerService.createCustomer(req.body, req.user?.id);
+      return res.status(201).json({
+        success: true,
+        message: 'Customer created successfully',
+        data: customer,
+        credentials
+      });
     } catch (error) {
       next(error);
     }
@@ -17,9 +22,12 @@ class CustomerController {
 
   async getAll(req, res, next) {
     try {
+      console.log('[CustomerController] Fetching all customers...');
       const customers = await CustomerService.getAllCustomers();
+      console.log(`[CustomerController] Successfully retrieved ${customers?.length || 0} customers.`);
       return ApiResponse.success(res, 'Customers retrieved successfully', customers);
     } catch (error) {
+      console.error('[CustomerController] Error fetching customers:', error.message);
       next(error);
     }
   }
@@ -60,6 +68,46 @@ class CustomerController {
       next(error);
     }
   }
+
+  async resendCredentials(req, res, next) {
+    try {
+      const result = await CustomerService.resetCredentials(req.params.id);
+      return res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  // --- Customer Facing Methods ---
+
+  async getMyDashboard(req, res, next) {
+    try {
+      const dashboardData = await CustomerService.getMyDashboard(req.user.id);
+      return ApiResponse.success(res, 'Dashboard data retrieved successfully', dashboardData);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyProfile(req, res, next) {
+    try {
+      const profile = await CustomerService.getMyProfile(req.user.id);
+      return ApiResponse.success(res, 'Profile retrieved successfully', profile);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getMyTransactions(req, res, next) {
+    try {
+      const transactions = await CustomerService.getMyTransactions(req.user.id);
+      return ApiResponse.success(res, 'Transactions retrieved successfully', transactions);
+    } catch (error) {
+      next(error);
+    }
+  }
+
 }
 
 module.exports = new CustomerController();
+

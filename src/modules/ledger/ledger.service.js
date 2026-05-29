@@ -1,5 +1,5 @@
-const Ledger = require('../../models/ledger.model');
-const { sequelize } = require('../../config/db');
+const { Ledger } = require('../../models');
+const { sequelize } = require('../../config/db.config');
 
 class LedgerService {
   /**

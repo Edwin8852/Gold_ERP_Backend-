@@ -1,5 +1,6 @@
 const { Notification, Customer, ChitFund, GoldLoan } = require('../../models');
 const WhatsAppService = require('./whatsapp/whatsapp.service');
+const EmailService = require('./email/email.service');
 const { Op } = require('sequelize');
 
 /**
@@ -8,7 +9,7 @@ const { Op } = require('sequelize');
  */
 class NotificationService {
   /**
-   * Create a notification record and send via WhatsApp
+   * Create a notification record and send via WhatsApp & Email
    */
   async createNotification(data) {
     const { customerId, type, message } = data;
@@ -21,26 +22,41 @@ class NotificationService {
       isRead: false
     });
 
-    // Fetch customer details for WhatsApp
+    // Fetch customer details for notifications
     const customer = await Customer.findByPk(customerId);
-    if (customer && customer.phoneNumber) {
-      await WhatsAppService.sendWhatsAppNotification(customer.phoneNumber, message);
+    if (customer) {
+      // Send WhatsApp
+      if (customer.mobileNumber) {
+        WhatsAppService.sendWhatsAppNotification(customer.mobileNumber, message).catch(console.error);
+      }
+      
+      // Send Email
+      if (customer.email) {
+        if (type === 'GOLD_LOAN_PRE_APPROVED') {
+          EmailService.sendGoldLoanPreApprovalEmail(customer, message).catch(console.error);
+        } else if (type === 'KYC_UPLOAD_REQUEST') {
+          EmailService.sendKycUploadRequestEmail(customer, message).catch(console.error);
+        } else {
+          EmailService.sendEmail(customer.email, `SDRS Gold Notification: ${type.replace(/_/g, ' ')}`, `<p>${message}</p>`).catch(console.error);
+        }
+      }
     }
 
     return notification;
   }
 
+
   async getAllNotifications(filters = {}) {
     return await Notification.findAll({
       where: filters,
-      include: [{ model: Customer, as: 'customer', attributes: ['firstName', 'lastName', 'phoneNumber'] }],
+      include: [{ model: Customer, as: 'customer', attributes: ['firstName', 'lastName', 'mobileNumber'] }],
       order: [['createdAt', 'DESC']]
     });
   }
 
   async getNotificationById(id) {
     return await Notification.findByPk(id, {
-      include: [{ model: Customer, as: 'customer', attributes: ['firstName', 'lastName', 'phoneNumber'] }]
+      include: [{ model: Customer, as: 'customer', attributes: ['firstName', 'lastName', 'mobileNumber'] }]
     });
   }
 

@@ -1,46 +1,62 @@
-const User = require('../../models/user.model');
+const { User } = require('../../models');
 const { hashPassword, comparePassword } = require('../../shared/utils/bcrypt');
 const { generateToken } = require('../../shared/utils/jwt');
+const { Op } = require('sequelize');
 
 const registerUser = async (userData) => {
-  const { firstName, lastName, email, password } = userData;
+  const { firstName, lastName, email, mobile, password } = userData;
 
   // Check if user exists
-  const existingUser = await User.findOne({ where: { email } });
+  const existingUser = await User.findOne({ 
+    where: { 
+      [Op.or]: [{ email: email || '' }, { mobile: mobile || '' }] 
+    } 
+  });
   if (existingUser) {
-    throw new Error('User with this email already exists');
+    throw new Error('User with this email or mobile already exists');
   }
 
-  // Hash password
-  const hashedPassword = await hashPassword(password);
-
-  // Create user with explicit fields only
+  // Create user
   const user = await User.create({
     firstName,
     lastName,
     email,
-    password: hashedPassword,
-    role: 'USER' // Default to USER for public registration
+    mobile,
+    password, // Hook will hash it
+    role: 'CUSTOMER'
   });
 
-  // Return user without password
   const userResponse = user.toJSON();
   delete userResponse.password;
 
   return userResponse;
 };
 
-const loginUser = async (email, password) => {
-  // Find user
-  const user = await User.findOne({ where: { email } });
+const loginUser = async (identifier, password) => {
+  console.log(`[Auth Service] Login attempt for identifier: ${identifier}`);
+  
+  // Find user by email OR mobile OR customerCode
+  const user = await User.findOne({ 
+    where: { 
+      [Op.or]: [
+        { email: identifier },
+        { mobile: identifier },
+        { customerCode: identifier }
+      ]
+    },
+    include: [{ model: require('../../models').Customer, as: 'customer' }]
+  });
+
   if (!user) {
-    throw new Error('Invalid email or password');
+    console.warn(`[Auth Service] User not found for identifier: ${identifier}`);
+    throw new Error('Invalid credentials');
   }
 
+
   // Compare password
-  const isMatch = await comparePassword(password, user.password);
+  const isMatch = await user.comparePassword(password);
   if (!isMatch) {
-    throw new Error('Invalid email or password');
+    throw new Error('Invalid credentials');
   }
 
   // Generate token including role
@@ -50,6 +66,38 @@ const loginUser = async (email, password) => {
   delete userResponse.password;
 
   return { user: userResponse, token };
+};
+
+const changePassword = async (userId, newPassword) => {
+  const user = await User.findByPk(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  user.password = newPassword;
+  user.isFirstLogin = false;
+  await user.save();
+
+  return { message: 'Password updated successfully' };
+};
+
+const updateProfile = async (userId, updateData) => {
+  const user = await User.findByPk(userId);
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  const allowedUpdates = ['firstName', 'lastName', 'email', 'mobile', 'profileImage'];
+  Object.keys(updateData).forEach(key => {
+    if (allowedUpdates.includes(key) && updateData[key] !== undefined) {
+      user[key] = updateData[key];
+    }
+  });
+
+  await user.save();
+  const userResponse = user.toJSON();
+  delete userResponse.password;
+  return userResponse;
 };
 
 const getUserById = async (id) => {
@@ -62,4 +110,5 @@ const getUserById = async (id) => {
   return userResponse;
 };
 
-module.exports = { registerUser, loginUser, getUserById };
+module.exports = { registerUser, loginUser, getUserById, changePassword, updateProfile };
+

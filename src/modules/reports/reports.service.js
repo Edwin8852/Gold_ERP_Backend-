@@ -1,9 +1,6 @@
 const { Op, fn, col, literal } = require('sequelize');
-const GoldLoan = require('../../models/goldLoan.model');
-const Payment = require('../../models/payment.model');
-const Customer = require('../../models/customer.model');
-const Ledger = require('../../models/ledger.model');
-const { sequelize } = require('../../config/db');
+const { GoldLoan, Payment, Customer, Ledger } = require('../../models');
+const { sequelize } = require('../../config/db.config');
 
 const generateRevenueReport = async (filters = {}) => {
   const { startDate, endDate } = filters;

@@ -1,64 +1,80 @@
-const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/db');
+module.exports = (sequelize, DataTypes) => {
+  const Invoice = sequelize.define('Invoice', {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true,
+    },
+    loanId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'loanId'
+    },
+    paymentId: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      field: 'paymentId'
+    },
+    invoiceNumber: {
+      type: DataTypes.STRING,
+      unique: true,
+      allowNull: false,
+      field: 'invoiceNumber'
+    },
+    invoiceType: {
+      type: DataTypes.ENUM('LOAN_CREATED', 'PAYMENT_RECEIVED', 'LOAN_CLOSED'),
+      allowNull: false,
+      field: 'invoiceType'
+    },
+    oldBalance: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      field: 'oldBalance'
+    },
+    paidAmount: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0,
+      field: 'paidAmount'
+    },
+    remainingBalance: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      field: 'remainingBalance'
+    },
+    interestAmount: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      field: 'interestAmount'
+    },
+    pendingAmount: {
+      type: DataTypes.DECIMAL(12, 2),
+      allowNull: false,
+      field: 'pendingAmount'
+    },
+    totalPaid: {
+      type: DataTypes.DECIMAL(12, 2),
+      defaultValue: 0,
+      field: 'totalPaid'
+    },
+    generatedDate: {
+      type: DataTypes.DATE,
+      defaultValue: DataTypes.NOW,
+      field: 'generatedDate'
+    },
+    createdBy: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'createdBy'
+    }
+  }, {
+    timestamps: true,
+    tableName: 'invoices'
+  });
 
-const Invoice = sequelize.define('Invoice', {
-  id: {
-    type: DataTypes.UUID,
-    defaultValue: DataTypes.UUIDV4,
-    primaryKey: true,
-  },
-  loanId: {
-    type: DataTypes.UUID,
-    allowNull: false,
-  },
-  paymentId: {
-    type: DataTypes.UUID,
-    allowNull: true,
-  },
-  invoiceNumber: {
-    type: DataTypes.STRING,
-    unique: true,
-    allowNull: false,
-  },
-  invoiceType: {
-    type: DataTypes.ENUM('LOAN_CREATED', 'PAYMENT_RECEIVED', 'LOAN_CLOSED'),
-    allowNull: false,
-  },
-  oldBalance: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  paidAmount: {
-    type: DataTypes.FLOAT,
-    defaultValue: 0,
-  },
-  remainingBalance: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  interestAmount: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  pendingAmount: {
-    type: DataTypes.FLOAT,
-    allowNull: false,
-  },
-  totalPaid: {
-    type: DataTypes.FLOAT,
-    defaultValue: 0,
-  },
-  generatedDate: {
-    type: DataTypes.DATE,
-    defaultValue: DataTypes.NOW,
-  },
-  createdBy: {
-    type: DataTypes.UUID,
-    allowNull: false,
-  }
-}, {
-  timestamps: true,
-  tableName: 'invoices'
-});
+  Invoice.associate = (models) => {
+    Invoice.belongsTo(models.GoldLoan, { foreignKey: 'loanId', as: 'loan' });
+    Invoice.belongsTo(models.Payment, { foreignKey: 'paymentId', as: 'payment' });
+  };
 
-module.exports = Invoice;
+  return Invoice;
+};

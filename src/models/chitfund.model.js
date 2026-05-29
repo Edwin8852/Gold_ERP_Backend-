@@ -34,5 +34,9 @@ module.exports = (sequelize, DataTypes) => {
     tableName: 'chit_funds'
   });
 
+  ChitFund.associate = (models) => {
+    ChitFund.hasMany(models.ChitMember, { foreignKey: 'chitFundId', as: 'members' });
+  };
+
   return ChitFund;
 };

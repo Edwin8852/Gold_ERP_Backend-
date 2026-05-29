@@ -1,5 +1,5 @@
 const { DataTypes } = require('sequelize');
-const { sequelize } = require('../config/db');
+const { sequelize } = require('../config/db.config');
 
 const TermsCondition = sequelize.define('TermsCondition', {
   id: {

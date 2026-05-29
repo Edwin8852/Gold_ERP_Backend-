@@ -13,19 +13,45 @@ const chitFundRoutes = require('../modules/chitFund/chitFund.routes');
 const pdfRoutes = require('../modules/pdf/pdf.routes');
 const ledgerRoutes = require('../modules/ledger/ledger.routes');
 const userRoutes = require('../modules/users/users.routes');
+const notificationRoutes = require('../modules/notification/notification.routes');
+const supportRoutes = require('../modules/support/support.routes');
+const documentRoutes = require('../modules/documents/document.routes');
+const aiRoutes = require('../modules/ai/ai.routes');
+const orderRoutes = require('../modules/order/order.routes');
+const goldLoanRoutes = require('../modules/goldLoan/goldLoan.routes');
+const schemeRoutes = require('../modules/goldLoanScheme/scheme.routes');
+const liveRateRoutes = require('../modules/liveRates/routes/liveRate.routes');
+const kycRoutes = require('../modules/kyc/kyc.routes');
+const walkInRoutes = require('../modules/walkIn/walkIn.routes');
+const loanPaymentRoutes = require('../modules/loanPayments/loanPayment.routes');
+const chitPaymentRoutes = require('../modules/chitPayments/chitPayment.routes');
 
 router.use('/auth', authRoutes);
+router.use('/kyc', kycRoutes);
 router.use('/gold-finance', goldFinanceRoutes);
+router.use('/walk-in', walkInRoutes);
+
 router.use('/invoices', invoiceRoutes);
 router.use('/payments', paymentRoutes);
 router.use('/customers', customerRoutes);
 router.use('/jewel-inspection', jewelInspectionRoutes);
 router.use('/gold-rates', goldRateRoutes);
+router.use('/live-rates', liveRateRoutes);
+router.use('/market-rates', liveRateRoutes); // Centralized alias
 router.use('/dashboard', dashboardRoutes);
 router.use('/reports', reportRoutes);
 router.use('/chit-fund', chitFundRoutes);
 router.use('/pdf', pdfRoutes);
 router.use('/ledger', ledgerRoutes);
 router.use('/users', userRoutes);
+router.use('/notification', notificationRoutes);
+router.use('/support', supportRoutes);
+router.use('/documents', documentRoutes);
+  router.use('/ai', aiRoutes);
+  router.use('/orders', orderRoutes);
+router.use('/gold-loans', goldLoanRoutes);
+router.use('/schemes', schemeRoutes);
+router.use('/loan-payments', loanPaymentRoutes);
+router.use('/chit-payments', chitPaymentRoutes);
 
 module.exports = router;

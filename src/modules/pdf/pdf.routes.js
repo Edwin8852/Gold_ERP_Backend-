@@ -11,5 +11,6 @@ router.get('/loan/:loanId', authorizeRoles('SUPER_ADMIN', 'ADMIN', 'USER'), pdfC
 router.get('/payment/:paymentId', authorizeRoles('SUPER_ADMIN', 'ADMIN', 'USER'), pdfController.generatePaymentPdf);
 router.get('/ledger/:loanId', authorizeRoles('SUPER_ADMIN', 'ADMIN', 'USER'), pdfController.generateLedgerPdf);
 router.get('/jewel/:inspectionId', authorizeRoles('SUPER_ADMIN', 'ADMIN', 'USER'), pdfController.generateJewelPdf);
+router.get('/chit-invoice/:paymentId', authorizeRoles('SUPER_ADMIN', 'ADMIN', 'USER', 'CUSTOMER'), pdfController.generateChitInvoicePdf);
 
 module.exports = router;

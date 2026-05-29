@@ -13,7 +13,7 @@ const sequelize = new Sequelize(
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     dialect: 'postgres',
-    logging: console.log, // Set to console.log to see SQL queries
+    logging: (msg) => console.log(`[Sequelize] ${msg}`),
     pool: {
       max: 5,
       min: 0,

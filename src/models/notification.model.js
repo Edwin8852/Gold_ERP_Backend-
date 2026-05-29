@@ -11,6 +11,7 @@ module.exports = (sequelize, DataTypes) => {
     customerId: {
       type: DataTypes.UUID,
       allowNull: true,
+      field: 'customerId',
       references: {
         model: 'customers',
         key: 'id',
@@ -27,6 +28,7 @@ module.exports = (sequelize, DataTypes) => {
     isRead: {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
+      field: 'isRead'
     }
   }, {
     tableName: 'notifications',

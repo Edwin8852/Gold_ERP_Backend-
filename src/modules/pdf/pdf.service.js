@@ -2,12 +2,7 @@ const PDFDocument = require('pdfkit');
 const QRCode = require('qrcode');
 const fs = require('fs');
 const path = require('path');
-const GoldLoan = require('../../models/goldLoan.model');
-const Customer = require('../../models/customer.model');
-const Payment = require('../../models/payment.model');
-const Invoice = require('../../models/invoice.model');
-const JewelInspection = require('../../models/jewelInspection.model');
-const TermsCondition = require('../../models/termsCondition.model');
+const { GoldLoan, Customer, Payment, Invoice, JewelInspection, TermsCondition } = require('../../models');
 
 // Helper to ensure directory exists
 const getPdfPath = (filename) => {
@@ -270,9 +265,100 @@ const generateJewelInspectionPDF = async (inspectionId) => {
   });
 };
 
+const generateChitInvoicePDF = async (paymentId, options = {}) => {
+  const { transaction } = options;
+  const { ChitFundPayment, ChitSubscriber, ChitScheme, Customer } = require('../../models');
+
+  const payment = await ChitFundPayment.findByPk(paymentId, {
+    include: [
+      {
+        model: ChitSubscriber,
+        as: 'subscriber',
+        include: [
+          { model: ChitScheme, as: 'scheme' },
+          { model: Customer, as: 'customer' }
+        ]
+      }
+    ],
+    transaction
+  });
+  if (!payment) throw new Error('Chit payment record not found');
+  
+  const subscriber = payment.subscriber;
+  if (!subscriber) throw new Error('Chit subscriber not found');
+
+  const customer = subscriber.customer;
+  const scheme = subscriber.scheme;
+
+  const filename = `chit-invoice-${paymentId}.pdf`;
+  const filepath = getPdfPath(filename);
+
+  return new Promise(async (resolve, reject) => {
+    try {
+      const doc = new PDFDocument({ margin: 50 });
+      const stream = fs.createWriteStream(filepath);
+      doc.pipe(stream);
+
+      drawCompanyHeader(doc, 'CHIT FUND PAYMENT INVOICE');
+
+      // Customer & Chit Metadata Info Block
+      doc.fontSize(10);
+      doc.text('CUSTOMER DETAILS', { underline: true, bold: true });
+      doc.text(`Name: ${customer.firstName} ${customer.lastName || ''}`);
+      doc.text(`Customer Code: ${customer.customerCode || 'N/A'}`);
+      doc.text(`Mobile: ${customer.mobileNumber || 'N/A'}`);
+      
+      doc.moveDown();
+      doc.text('CHIT SCHEME DETAILS', { underline: true, bold: true });
+      doc.text(`Scheme Name: ${scheme.schemeName}`);
+      doc.text(`Total Amount: Rs. ${parseFloat(scheme.totalAmount).toLocaleString()}`);
+      doc.text(`Ticket Number: #${subscriber.ticketNumber}`);
+      doc.text(`Monthly Installment: Rs. ${parseFloat(scheme.monthlyInstallment).toLocaleString()}`);
+      doc.moveDown();
+
+      // Payment Transaction Table
+      doc.fontSize(12).text('Payment Details', { underline: true });
+      doc.moveDown(0.5);
+      
+      doc.fontSize(10).text(`Invoice Number: ${payment.invoiceNumber || 'INV-CHIT-' + payment.id.split('-')[0].toUpperCase()}`);
+      doc.text(`Transaction ID: ${payment.referenceNumber || 'N/A'}`);
+      doc.text(`Payment Date: ${new Date(payment.paymentDate).toLocaleString()}`);
+      doc.text(`Payment Method: ${payment.paymentMethod}`);
+      doc.text(`Payment Status: ${payment.paymentStatus || 'INSTALLMENT_PAID'}`);
+      doc.moveDown();
+
+      // Summary Box
+      const boxY = doc.y;
+      doc.rect(50, boxY, 500, 70).fillAndStroke('#F8FAFC', '#E2E8F0');
+      doc.fillColor('#000000');
+      
+      doc.text(`  Installment Number: #${payment.installmentNumber || payment.installmentMonth || 'N/A'}`, 60, boxY + 12, { bold: true });
+      doc.text(`  Amount Paid: Rs. ${parseFloat(payment.amountPaid).toLocaleString()}`, 60, boxY + 28, { bold: true });
+      doc.text(`  Remaining Chit Balance: Rs. ${parseFloat(payment.remainingBalance !== null ? payment.remainingBalance : subscriber.pendingAmount).toLocaleString()}`, 60, boxY + 44, { bold: true });
+      
+      doc.moveDown(4);
+
+      // QR Code
+      const qrBuffer = await generateQR(`Verification URL: /verify/chit-payment/${payment.id}`);
+      if (qrBuffer) {
+        doc.image(qrBuffer, 450, 50, { width: 80 });
+      }
+
+      await drawFooter(doc);
+
+      doc.end();
+      stream.on('finish', () => resolve(`/uploads/pdfs/${filename}`));
+      stream.on('error', reject);
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
 module.exports = {
   generateLoanInvoicePDF,
   generatePaymentReceiptPDF,
   generateLoanLedgerPDF,
-  generateJewelInspectionPDF
+  generateJewelInspectionPDF,
+  generateChitInvoicePDF
 };

@@ -3,39 +3,35 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const errorHandler = require('./shared/middleware/error.middleware');
+const routes = require('./routes'); // Centralized router
 require('dotenv').config();
 
 const app = express();
 
 // Global Middlewares
-app.use(helmet()); // Security headers
-app.use(cors()); // Enable CORS
-app.use(morgan('dev')); // Logging
-app.use(express.json()); // Body parser
-app.use(express.urlencoded({ extended: true }));
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Allow cross-origin images/resources if needed
+})); 
+app.use(cors({
+  origin: '*', // For development. In production, specify: process.env.FRONTEND_URL
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
+  credentials: true
+})); 
+app.use(morgan('dev')); 
+app.use(express.json({ limit: '50mb' })); 
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+const path = require('path');
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Root Route
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to SDRS Gold Finance & Jewelry ERP API' });
 });
 
-// Import Routes
-const customerRoutes = require('./modules/customer/customer.routes');
-const orderRoutes = require('./modules/order/order.routes');
-const chitfundRoutes = require('./modules/chitfund/chitfund.routes');
-const goldrateRoutes = require('./modules/goldrate/goldrate.routes');
-const notificationRoutes = require('./modules/notification/notification.routes');
-const initNotificationCron = require('./modules/notification/notification.cron');
-
-// Initialize Cron Schedulers
-initNotificationCron();
-
-// Mount Routes
-app.use('/api/customers', customerRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/chit-funds', chitfundRoutes);
-app.use('/api/gold-rates', goldrateRoutes);
-app.use('/api/notifications', notificationRoutes);
+// Mount All API Routes
+app.use('/api', routes);
 
 // Error Handling Middleware (Should be last)
 app.use(errorHandler);

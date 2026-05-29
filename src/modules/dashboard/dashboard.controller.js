@@ -52,9 +52,37 @@ const getCharts = async (req, res, next) => {
   }
 };
 
+const getExecutiveStats = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getExecutiveStats();
+    return res.status(200).json({
+      success: true,
+      message: 'Executive stats fetched successfully',
+      data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getSecurityLogs = async (req, res, next) => {
+  try {
+    const data = await dashboardService.getSecurityLogs();
+    return res.status(200).json({
+      success: true,
+      message: 'Security logs fetched successfully',
+      data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSummary,
   getAnalytics,
   getActivity,
-  getCharts
+  getCharts,
+  getExecutiveStats,
+  getSecurityLogs
 };

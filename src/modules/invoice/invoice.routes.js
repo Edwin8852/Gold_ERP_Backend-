@@ -7,6 +7,8 @@ router.use(authMiddleware);
 
 router.get('/', invoiceController.getInvoices);
 router.get('/:id', invoiceController.getInvoice);
+router.get('/:id/download', invoiceController.downloadPDF);
+router.get('/download-by-number/:invoiceNumber', invoiceController.downloadPDFByNumber);
 router.get('/loan/:loanId', invoiceController.getLoanInvoices);
 
 module.exports = router;

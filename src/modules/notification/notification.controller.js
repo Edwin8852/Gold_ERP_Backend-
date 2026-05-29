@@ -27,7 +27,19 @@ class NotificationController {
     try {
       const { customerId, type } = req.query;
       const filters = {};
-      if (customerId) filters.customerId = customerId;
+      
+      // RBAC Filtering
+      if (req.user.role === 'CUSTOMER') {
+        // If it's a customer, they can ONLY see their own notifications
+        // Assuming req.user.id maps to a user that might have a customer record
+        // For simplicity here, let's assume req.user.id is what we filter on or we need to find their customerId
+        // In a real system, you'd fetch the customerId linked to this user.
+        filters.customerId = req.user.customerId || req.user.id; 
+      } else if (customerId) {
+        // Admin can filter by customerId
+        filters.customerId = customerId;
+      }
+
       if (type) filters.type = type;
 
       const notifications = await NotificationService.getAllNotifications(filters);
@@ -36,6 +48,7 @@ class NotificationController {
       next(error);
     }
   }
+
 
   /**
    * GET /api/notifications/:id

@@ -5,12 +5,16 @@ const { Order, Customer } = require('../../models');
  */
 class OrderService {
   async createOrder(data) {
+
     // Generate a simple Order Number: ORD-YYYYMMDD-RAND
     const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const rand = Math.floor(1000 + Math.random() * 9000);
     data.orderNumber = `ORD-${date}-${rand}`;
 
-    return await Order.create(data);
+    const order = await Order.create(data);
+
+
+    return order;
   }
 
   async getAllOrders() {

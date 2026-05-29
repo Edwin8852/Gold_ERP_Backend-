@@ -1,9 +1,15 @@
 const { Op, fn, col, literal } = require('sequelize');
-const Customer = require('../../models/customer.model');
-const GoldLoan = require('../../models/goldLoan.model');
-const Payment = require('../../models/payment.model');
-const Ledger = require('../../models/ledger.model');
-const GoldRate = require('../../models/goldRate.model');
+const db = require('../../models');
+const { 
+  Customer, 
+  GoldLoan, 
+  Payment, 
+  Ledger, 
+  GoldRate, 
+  ChitScheme, 
+  ChitSubscriber, 
+  ChitInstallment 
+} = db;
 
 const getSummary = async () => {
   const [
@@ -67,7 +73,6 @@ const getAnalytics = async () => {
     })
   ]);
 
-  // Simplified Growth Percentage Logic (Current Month vs Previous Month)
   const currentMonthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   const prevMonthStart = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1);
 
@@ -88,6 +93,66 @@ const getAnalytics = async () => {
     monthlyPaymentTrends,
     revenueGrowthPercentage: calculateGrowth(currentMonthRev, prevMonthRev),
     loanGrowthPercentage: calculateGrowth(currentMonthLoans, prevMonthLoans)
+  };
+};
+
+const securityService = require('../../shared/services/security.service');
+
+const getExecutiveStats = async () => {
+  const [
+    chitRevenue,
+    loanRevenue,
+    overdueChits,
+    totalChitPenalty,
+    activeSchemes,
+    subscriberGrowth,
+    securitySummary
+  ] = await Promise.all([
+    ChitInstallment.sum('paidAmount', { where: { status: 'PAID' } }) || 0,
+    Payment.sum('paymentAmount') || 0,
+    ChitInstallment.count({ where: { status: 'OVERDUE' } }),
+    ChitInstallment.sum('penaltyAmount') || 0,
+    ChitScheme.count({ where: { status: 'ACTIVE' } }),
+    ChitSubscriber.count({
+      attributes: [[fn('DATE_TRUNC', 'month', col('createdAt')), 'month']],
+      group: [fn('DATE_TRUNC', 'month', col('createdAt'))],
+      raw: true
+    }),
+    securityService.getRecentActivity(5)
+  ]);
+
+  const revenueByChannel = [
+    { name: 'Gold Loans', value: parseFloat(loanRevenue) },
+    { name: 'Chit Funds', value: parseFloat(chitRevenue) }
+  ];
+
+  const recentPerformance = await ChitInstallment.findAll({
+    attributes: [
+      [fn('DATE_TRUNC', 'month', col('dueDate')), 'month'],
+      [fn('SUM', col('paidAmount')), 'collected'],
+      [fn('SUM', col('payableAmount')), 'target']
+    ],
+    group: [fn('DATE_TRUNC', 'month', col('dueDate'))],
+    order: [[fn('DATE_TRUNC', 'month', col('dueDate')), 'DESC']],
+    limit: 6,
+    raw: true
+  });
+
+  return {
+    kpis: {
+      totalRevenue: parseFloat(loanRevenue) + parseFloat(chitRevenue),
+      chitRevenue: parseFloat(chitRevenue),
+      loanRevenue: parseFloat(loanRevenue),
+      totalPenalty: parseFloat(totalChitPenalty),
+      overdueCount: overdueChits,
+      activeSchemes
+    },
+    charts: {
+      revenueByChannel,
+      collectionTrends: recentPerformance.reverse(),
+      subscriberGrowth
+    },
+    security: securitySummary
   };
 };
 
@@ -153,9 +218,16 @@ const getCharts = async () => {
   };
 };
 
+const getSecurityLogs = async () => {
+  return await securityService.getRecentActivity(50);
+};
+
 module.exports = {
   getSummary,
   getAnalytics,
+  getExecutiveStats,
   getActivity,
-  getCharts
+  getCharts,
+  getSecurityLogs
 };
+

@@ -6,10 +6,15 @@ const logger = require('../../config/logger');
  * Catches all errors and returns a formatted JSON response with translation support
  */
 const errorHandler = (err, req, res, next) => {
-  logger.error(err.stack || err.message);
-
+  // Determine if it's an operational error (custom AppError) or a programming error
   let statusCode = err.statusCode || 500;
   let message = err.message || 'Internal Server Error';
+
+  if (process.env.NODE_ENV === 'development' || !err.isOperational) {
+    logger.error(`${err.name}: ${err.message}\n${err.stack}`);
+  } else {
+    logger.warn(`Operational Error: ${err.message}`);
+  }
 
   // Handle Translation if available
   if (req.t) {
@@ -31,7 +36,8 @@ const errorHandler = (err, req, res, next) => {
     message = err.details ? err.details.map((d) => d.message).join(', ') : err.message;
   }
 
-  return ApiResponse.error(res, message, statusCode, process.env.NODE_ENV === 'development' ? err.stack : undefined);
+  return ApiResponse.error(res, message, statusCode, (process.env.NODE_ENV === 'development' && !err.isOperational) ? err.stack : undefined);
 };
+
 
 module.exports = errorHandler;
