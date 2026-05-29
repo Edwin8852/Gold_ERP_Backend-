@@ -2,6 +2,11 @@ const { Client } = require('pg');
 require('dotenv').config();
 
 const createDatabase = async () => {
+  if (process.env.NODE_ENV === 'production') {
+    console.log('ℹ️ Skipping database creation in production (Render handles this automatically).');
+    return;
+  }
+
   // Connect to the default 'postgres' database first
   const client = new Client({
     host: process.env.DB_HOST,
