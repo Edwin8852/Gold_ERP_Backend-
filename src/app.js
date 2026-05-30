@@ -12,8 +12,27 @@ const app = express();
 app.use(helmet({
   crossOriginResourcePolicy: false, // Allow cross-origin images/resources if needed
 })); 
+const ALLOWED_ORIGINS = [
+  // Production (Render)
+  process.env.FRONTEND_URL,
+  // Render preview deployments
+  /https:\/\/.*\.onrender\.com$/,
+  // Local development
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://127.0.0.1:5173',
+].filter(Boolean);
+
 app.use(cors({
-  origin: '*', // In production, set to: process.env.FRONTEND_URL
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g., mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    const allowed = ALLOWED_ORIGINS.some((o) =>
+      o instanceof RegExp ? o.test(origin) : o === origin
+    );
+    if (allowed) return callback(null, true);
+    callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: [
     'Content-Type',
