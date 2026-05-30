@@ -112,44 +112,41 @@ const scrapeLiveChennai = async () => {
     return isNaN(val) || val <= 0 ? null : val;
   };
 
-  $('table tr').each((_, tr) => {
-    const cells = $(tr).find('td');
-    if (cells.length < 2) return;
-
-    const label = $(cells[0]).text().replace(/\s+/g, ' ').trim().toLowerCase();
-    const rawVal = $(cells[1]).text().replace(/\s+/g, ' ').trim();
-
-    if ((label.includes('24 carat') || label.includes('24k') || label.includes('24 k')) && gold24k === null) {
-      const per8g = toFloat(rawVal);
-      if (per8g) gold24k = parseFloat((per8g / 8).toFixed(2));
-    }
-
-    // Silver is per gram on livechennai
-    if (label.includes('silver') && silverRate === null) {
-      const val = toFloat(rawVal);
-      if (val) silverRate = parseFloat(val.toFixed(2));
-    }
-  });
-
-  // Fallback: try alternate table structures if main pass yielded nothing
-  if (!gold24k) {
-    $('table').each((_, table) => {
-      const text = $(table).text().replace(/\s+/g, ' ');
-      if (!text.toLowerCase().includes('gold')) return;
-
-      $(table).find('tr').each((_, tr) => {
+  // 1. Extract Gold Rates from the main gold table
+  // The gold table has headers: Date | Pure Gold (24 k) 1 Gm | 8 Gm | Standard Gold (22 K) 1 Gm | 8 Gm
+  // The data row usually has 5 columns. We find the first row with a valid date.
+  $('table').each((i, table) => {
+    const text = $(table).text().toLowerCase();
+    if (text.includes('pure gold (24 k)') || text.includes('standard gold (22 k)')) {
+      $(table).find('tr').each((j, tr) => {
         const cells = $(tr).find('td');
-        if (cells.length < 2) return;
-        const label = $(cells[0]).text().toLowerCase();
-        const rawVal = $(cells[1]).text();
-
-        if (label.includes('24') && !gold24k) {
-          const per8g = toFloat(rawVal);
-          if (per8g) gold24k = parseFloat((per8g / 8).toFixed(2));
+        if (cells.length >= 5) {
+          const dateStr = $(cells[0]).text().trim();
+          // Check if first column looks like a date (e.g. 30/May/2026)
+          if (dateStr.includes('/') && gold24k === null) {
+            const val24k = toFloat($(cells[1]).text());
+            const val22k = toFloat($(cells[3]).text());
+            if (val24k) gold24k = val24k;
+            if (val22k) gold22k = val22k;
+          }
         }
       });
-    });
-  }
+    }
+    
+    // 2. Extract Silver Rates from the silver table
+    if (text.includes('silver 1 gm') && text.includes('ready silver')) {
+      $(table).find('tr').each((j, tr) => {
+        const cells = $(tr).find('td');
+        if (cells.length >= 3) {
+          const dateStr = $(cells[0]).text().trim();
+          if (dateStr.includes('/') && silverRate === null) {
+            const valAg = toFloat($(cells[1]).text());
+            if (valAg) silverRate = valAg;
+          }
+        }
+      });
+    }
+  });
 
   // Validate
   if (!gold24k || gold24k < 100) throw new Error('LIVECHENNAI_INVALID_24K');
