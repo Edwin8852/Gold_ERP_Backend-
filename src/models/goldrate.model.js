@@ -91,6 +91,7 @@ module.exports = (sequelize, DataTypes) => {
       },
       gold24KRate() {
         return this.getDataValue('gold24KRate') || this.getDataValue('gold24k');
+      },
     },
     hooks: {
       beforeValidate: (instance) => {
