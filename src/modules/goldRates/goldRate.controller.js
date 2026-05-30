@@ -46,10 +46,10 @@ const getLatestRate = async (req, res) => {
     const rate = await goldRateService.getLatestRate();
 
     if (!rate) {
-      logger.error('[GoldRateController] getLatestRate: No rate available from any source.');
+      logger.error('[GoldRateController] getLatestRate: No Chennai rate available.');
       return res.status(503).json({
         success: false,
-        message: 'Gold rate temporarily unavailable. Please try again in a moment.',
+        message: 'Chennai Rate Temporarily Unavailable. Please try again shortly.',
       });
     }
 
@@ -66,15 +66,14 @@ const getLatestRate = async (req, res) => {
     console.log('═══════════════════════════════════════════\n');
 
     return res.status(200).json({
-      city:       rate.city || "Chennai",
+      city:       'Chennai',
       gold24k:    rate.gold24k,
       gold22k:    rate.gold22k,
+      gold18k:    rate.gold18k,
       silverRate: rate.silverRate,
       updatedAt:  rate.updatedAt,
-      // include these for frontend compatibility
-      gold18k:    rate.gold18k,
       rateDate:   rate.rateDate,
-      source:     rate.source,
+      source:     'Chennai Market Rates',
       isFallback,
     });
   } catch (error) {
@@ -116,12 +115,12 @@ const getLiveRate = async (req, res) => {
       success: true,
 
       // ── Canonical snake_case keys ──
-      city:        rates.city || 'Chennai',
+      city:        'Chennai',
       gold_24k:    Number(rates.gold_24k),
       gold_22k:    Number(rates.gold_22k),
       gold_18k:    Number(rates.gold_18k),
       silver_rate: Number(rates.silver_rate),
-      source:      rates.source,
+      source:      'Chennai Market Rates',
       market_status: rates.market_status,
       updated_at:  rates.updated_at,
 
@@ -183,15 +182,15 @@ const refreshRate = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: 'Gold rate refreshed successfully.',
+      message: 'Chennai gold rate refreshed successfully.',
       data: {
-        city:       saved.city || 'Chennai',
+        city:       'Chennai',
         gold18k:    Number(saved.gold18k),
         gold22k:    Number(saved.gold22k),
         gold24k:    Number(saved.gold24k),
         silverRate: Number(saved.silverRate),
         rateDate:   saved.rateDate,
-        source:     saved.source,
+        source:     'Chennai Market Rates',
         updatedAt:  saved.fetchedAt || saved.updatedAt,
       },
     });

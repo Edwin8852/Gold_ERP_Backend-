@@ -56,7 +56,7 @@ class PDFService {
       .fontSize(20)
       .text('SDRS GOLD FINANCE', 110, 57)
       .fontSize(10)
-      .text('123, Gold Street, Coimbatore, TN 641001', 110, 80)
+      .text('123, Gold Street, Chennai, TN 600001', 110, 80)
       .text('Phone: +91 98432 57757 | GSTIN: 33BIXPS6851D1ZQ', 110, 95)
       .moveDown();
       

@@ -1,17 +1,21 @@
 /**
  * GoldRate Model — Canonical source of truth for all gold/silver rates.
  *
+ * CITY POLICY: city must ALWAYS be 'Chennai'.
+ * Any insert or update with a different city is rejected at the model level.
+ *
  * Fields:
- *   - gold22k      : Market rate per gram for 22K gold (INR)
- *   - gold24k      : Market rate per gram for 24K gold (INR)
- *   - silverRate   : Market rate per gram for silver  (INR)
- *   - rateDate     : Date for which this record is valid (DATEONLY, unique)
- *   - source       : Origin of rate (e.g. "livechennai.com", "BankBazaar", "DB Fallback")
- *   - fetchedAt    : Exact IST timestamp when data was fetched
+ *   - city        : Must always be 'Chennai'
+ *   - gold22k     : Market rate per gram for 22K gold (INR) — Chennai rate
+ *   - gold24k     : Market rate per gram for 24K gold (INR) — Chennai rate
+ *   - silverRate  : Market rate per gram for silver  (INR) — Chennai rate
+ *   - rateDate    : Date for which this record is valid (DATEONLY, unique)
+ *   - source      : Origin of rate (e.g. 'Chennai Market Rates')
+ *   - fetchedAt   : Exact IST timestamp when data was fetched
  *
  * Legacy aliases kept for backward-compat with loan calculations:
- *   - gold22KRate  : virtual getter → gold22k
- *   - gold24KRate  : virtual getter → gold24k
+ *   - gold22KRate : virtual getter → gold22k
+ *   - gold24KRate : virtual getter → gold24k
  */
 module.exports = (sequelize, DataTypes) => {
   const GoldRate = sequelize.define('GoldRate', {
@@ -39,9 +43,16 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
     city: {
-      type: DataTypes.STRING,
-      allowNull: false,
+      type:         DataTypes.STRING,
+      allowNull:    false,
       defaultValue: 'Chennai',
+      validate: {
+        isChennaiOnly(value) {
+          if (value !== 'Chennai') {
+            throw new Error('Only Chennai market rates are allowed');
+          }
+        },
+      },
     },
 
     // ── Unique date field (one record per day) ──────────────────────────────
@@ -95,10 +106,27 @@ module.exports = (sequelize, DataTypes) => {
     },
     hooks: {
       beforeValidate: (instance) => {
+        // Enforce Chennai-only policy at model level
         if (instance.city && instance.city !== 'Chennai') {
-          throw new Error('City must be Chennai');
+          throw new Error('Only Chennai market rates are allowed');
         }
-      }
+        // Auto-correct null/undefined city to Chennai
+        if (!instance.city) instance.city = 'Chennai';
+        // Ensure source always shows Chennai Market Rates
+        if (!instance.source || instance.source === 'Unknown') {
+          instance.source = 'Chennai Market Rates';
+        }
+      },
+      beforeCreate: (instance) => {
+        if (instance.city !== 'Chennai') {
+          throw new Error('Only Chennai market rates are allowed');
+        }
+      },
+      beforeUpdate: (instance) => {
+        if (instance.city !== 'Chennai') {
+          throw new Error('Only Chennai market rates are allowed');
+        }
+      },
     }
   });
 

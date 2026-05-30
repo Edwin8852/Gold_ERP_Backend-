@@ -6,16 +6,16 @@
  * ============================================================
  *
  * Single authoritative source for all gold & silver rates.
+ * CITY POLICY: Only Chennai market rates are allowed.
  *
  * Fetch priority:
- *   1. livechennai.com  (user-specified primary)
- *   2. BankBazaar Coimbatore  (secondary scraper)
- *   3. gold-api.com + open.er-api.com  (keyless spot API)
+ *   1. livechennai.com  (Chennai primary source)
  *
  * Persistence:
  *   - One record per calendar day (IST) in `gold_rates` table
  *   - Uses upsert on rateDate to prevent duplicates
- *   - If all fetches fail, returns most recent valid DB record
+ *   - If fetch fails, returns most recent valid Chennai DB record
+ *   - If NO Chennai records exist, returns null (never uses another city)
  *
  * Timezone:
  *   - All dates computed in Asia/Kolkata (IST, UTC+5:30)
@@ -165,7 +165,7 @@ const scrapeLiveChennai = async () => {
   console.log("24K Rate:", gold24k);
   console.log("22K Rate:", gold22k);
   console.log("Silver Rate:", silverRate);
-  return { city: 'Chennai', gold18k, gold22k, gold24k, silverRate, source: 'livechennai.com' };
+  return { city: 'Chennai', gold18k, gold22k, gold24k, silverRate, source: 'Chennai Market Rates' };
 };
 
 // ──────────────────────────────────────────────────────────────────────────
