@@ -317,14 +317,19 @@ const getLatestRate = async () => {
   }
 
   // 3. DB fallback — most recent valid record (could be yesterday)
-  const lastRecord = await GoldRate.findOne({
-    where: {
-      city: 'Chennai',
-      gold22k: { [Op.not]: null },
-      gold24k: { [Op.not]: null },
-    },
-    order: [['rateDate', 'DESC']],
-  });
+  // NOTE: Do NOT filter by city here — the column may not exist on first deploy
+  let lastRecord = null;
+  try {
+    lastRecord = await GoldRate.findOne({
+      where: {
+        gold22k: { [Op.not]: null },
+        gold24k: { [Op.not]: null },
+      },
+      order: [['rateDate', 'DESC']],
+    });
+  } catch (dbErr) {
+    logger.error(`[GoldRateService] DB fallback query failed: ${dbErr.message}`);
+  }
 
   if (lastRecord) {
     logger.warn(`[GoldRateService] Using DB fallback record (${lastRecord.rateDate}) for today's display.`);
@@ -435,10 +440,15 @@ const getLiveMarketRates = async () => {
   }
 
   // Try GoldRate table as last resort
-  const lastGoldRate = await GoldRate.findOne({
-    where: { city: 'Chennai', gold22k: { [Op.not]: null } },
-    order: [['rateDate', 'DESC']],
-  }).catch(() => null);
+  let lastGoldRate = null;
+  try {
+    lastGoldRate = await GoldRate.findOne({
+      where: { gold22k: { [Op.not]: null } },
+      order: [['rateDate', 'DESC']],
+    });
+  } catch (dbErr) {
+    logger.error(`[GoldRateService] GoldRate fallback query failed: ${dbErr.message}`);
+  }
 
   if (lastGoldRate) {
     const asRates = {
