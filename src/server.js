@@ -1,7 +1,7 @@
 const app = require('./app');
 const { connectDB, sequelize } = require('./config/db.config');
 const db = require('./models');
-const initCronJobs = require('./config/cron');
+const { initCronJobs } = require('./cron'); // src/cron.js — exports { initCronJobs }
 
 const PORT = process.env.PORT || 5000;
 
@@ -53,6 +53,15 @@ const startServer = async () => {
         console.log('✅ User profile columns verified.');
       } catch (e) {
         console.error('❌ Failed to add User profile columns:', e.message);
+      }
+
+      try {
+        console.log('🔄 [DEV] Verifying GoldRate new columns...');
+        await sequelize.query('ALTER TABLE gold_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';');
+        await sequelize.query('ALTER TABLE gold_market_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';');
+        console.log('✅ GoldRate columns verified.');
+      } catch (e) {
+        console.error('❌ Failed to add GoldRate columns:', e.message);
       }
 
       try {

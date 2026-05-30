@@ -7,10 +7,19 @@ const { sendEMIReminder } = require('./shared/utils/sms');
  * Initialize all automated cron jobs
  */
 const initCronJobs = () => {
-  // 1. Update Gold Rate every hour
-  cron.schedule('0 * * * *', async () => {
-    console.log('⏰ Running Gold Rate Update Cron...');
-    await goldRateService.updateGoldRate();
+  // 1. Update Gold Rate every 30 minutes
+  //    Cron expression: "*/30 * * * *" with timezone option
+  cron.schedule('*/30 * * * *', async () => {
+    const now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+    console.log(`⏰ [Cron] Running Gold Rate Update at ${now} IST ...`);
+    try {
+      const saved = await goldRateService.fetchAndSaveTodaysRate();
+      console.log(`✅ [Cron] Gold Rate saved — 22K: ₹${saved.gold22k}, 24K: ₹${saved.gold24k}, Ag: ₹${saved.silverRate} (source: ${saved.source})`);
+    } catch (err) {
+      console.error(`❌ [Cron] Gold Rate Update failed: ${err.message}`);
+    }
+  }, {
+    timezone: 'Asia/Kolkata'
   });
 
   // 2. Scan for EMIs due in 2 days (Run daily at 9:00 AM)

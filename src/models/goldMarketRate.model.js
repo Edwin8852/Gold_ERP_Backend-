@@ -25,6 +25,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       field: 'silver_rate',
     },
+    city: {
+      type: DataTypes.STRING,
+      allowNull: false,
+      defaultValue: 'Chennai',
+      field: 'city',
+    },
     source: {
       type: DataTypes.STRING,
       allowNull: false,

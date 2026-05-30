@@ -36,6 +36,7 @@ router.use('/payments', paymentRoutes);
 router.use('/customers', customerRoutes);
 router.use('/jewel-inspection', jewelInspectionRoutes);
 router.use('/gold-rates', goldRateRoutes);
+router.use('/gold-rate',  goldRateRoutes); // Canonical alias: GET /api/gold-rate/latest
 router.use('/live-rates', liveRateRoutes);
 router.use('/market-rates', liveRateRoutes); // Centralized alias
 router.use('/dashboard', dashboardRoutes);
