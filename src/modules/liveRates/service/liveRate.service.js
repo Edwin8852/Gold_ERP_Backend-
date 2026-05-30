@@ -126,7 +126,10 @@ class LiveRateService {
 
     // Derive lower purities from master 24K (Chennai rate)
     gold22k = parseFloat((gold24k * (22 / 24)).toFixed(2));
-    const gold18k = parseFloat((gold24k * (18 / 24)).toFixed(2));
+    
+    // 18K Gold in Chennai carries an alloying premium over the pure 75% (18/24) ratio.
+    // GoodReturns ratio for 18K Chennai is ~76.911% of 24K (e.g. 15960 -> 12275)
+    const gold18k = Math.round(gold24k * 0.7691102);
 
     console.log(`Market City: ${CITY}`);
     console.log(`24K Rate: ${gold24k}`);
