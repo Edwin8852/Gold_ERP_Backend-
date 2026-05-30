@@ -1,4 +1,4 @@
-const ChitFundService = require('./chitFund.service');
+const ChitFundService = require('./chitfund.service');
 const ApiResponse = require('../../shared/utils/apiResponse');
 
 class ChitFundController {
