@@ -30,6 +30,16 @@ const startServer = async () => {
     // 2. Sync Models and Validate Schema
     const isDev = process.env.NODE_ENV === 'development' || !process.env.NODE_ENV;
     
+    // Always run safe migrations
+    try {
+      console.log('🔄 Verifying GoldRate new columns...');
+      await sequelize.query('ALTER TABLE gold_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';').catch(() => {});
+      await sequelize.query('ALTER TABLE gold_market_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';').catch(() => {});
+      console.log('✅ GoldRate columns verified.');
+    } catch (e) {
+      console.error('❌ Failed to add GoldRate columns:', e.message);
+    }
+
     if (isDev) {
       try {
         if (process.env.DB_SYNC_ALTER === 'true') {
@@ -55,14 +65,7 @@ const startServer = async () => {
         console.error('❌ Failed to add User profile columns:', e.message);
       }
 
-      try {
-        console.log('🔄 [DEV] Verifying GoldRate new columns...');
-        await sequelize.query('ALTER TABLE gold_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';');
-        await sequelize.query('ALTER TABLE gold_market_rates ADD COLUMN IF NOT EXISTS "city" VARCHAR(255) DEFAULT \'Chennai\';');
-        console.log('✅ GoldRate columns verified.');
-      } catch (e) {
-        console.error('❌ Failed to add GoldRate columns:', e.message);
-      }
+
 
       try {
         console.log('🔄 [DEV] Verifying Chit Scheme status ENUM values...');
