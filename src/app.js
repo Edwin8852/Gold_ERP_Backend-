@@ -17,6 +17,8 @@ const ALLOWED_ORIGINS = [
   process.env.FRONTEND_URL,
   // Render preview deployments
   /https:\/\/.*\.onrender\.com$/,
+  // Vercel deployments
+  /https:\/\/.*\.vercel\.app$/,
   // Local development
   'http://localhost:5173',
   'http://localhost:3000',
