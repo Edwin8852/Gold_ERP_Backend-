@@ -257,22 +257,35 @@ const persistTodaysRate = async (freshRates) => {
 const fetchAndSaveTodaysRate = async () => {
   logger.info('[GoldRateService] fetchAndSaveTodaysRate() called.');
   const fresh = await fetchFreshRates();
-  const saved = await persistTodaysRate(fresh);
+  
+  let saved = null;
+  try {
+    saved = await persistTodaysRate(fresh);
+  } catch (dbErr) {
+    logger.error(`[GoldRateService] Failed to save fetched rate to DB: ${dbErr.message}`);
+    // If DB fails, simulate the saved object so the API still returns the live scraped data!
+    saved = { ...fresh, rateDate: getTodaysISTDate(), fetchedAt: new Date() };
+  }
+
   // Also save to GoldMarketRate for the live ticker / change metrics
   try {
-    await GoldMarketRate.create({
-      city:          fresh.city || 'Chennai',
-      gold_24k:      fresh.gold24k,
-      gold_22k:      fresh.gold22k,
-      gold_18k:      fresh.gold18k,
-      silver_rate:   fresh.silverRate,
-      source:        fresh.source,
-      market_status: 'LIVE',
-      updated_at:    new Date(),
-    });
+    const { GoldMarketRate } = require('../../../models');
+    if (GoldMarketRate) {
+      await GoldMarketRate.create({
+        city:          fresh.city || 'Chennai',
+        gold_24k:      fresh.gold24k,
+        gold_22k:      fresh.gold22k,
+        gold_18k:      fresh.gold18k,
+        silver_rate:   fresh.silverRate,
+        source:        fresh.source,
+        market_status: 'LIVE',
+        updated_at:    new Date(),
+      });
+    }
   } catch (mErr) {
     logger.warn(`[GoldRateService] GoldMarketRate insert warning: ${mErr.message}`);
   }
+  
   return saved;
 };
 
@@ -294,8 +307,13 @@ const getLatestRate = async () => {
   const todayIST = getTodaysISTDate();
   logger.info(`[GoldRateService] getLatestRate() — looking for ${todayIST} in DB.`);
 
-  // 1. Check for today's record
-  let record = await GoldRate.findOne({ where: { rateDate: todayIST } });
+  // 1. Check for today's record (wrap in try-catch to prevent 500 on schema mismatch)
+  let record = null;
+  try {
+    record = await GoldRate.findOne({ where: { rateDate: todayIST } });
+  } catch (dbErr) {
+    logger.error(`[GoldRateService] DB query failed for today's rate: ${dbErr.message}`);
+  }
 
   if (record && record.gold22k && Number(record.gold22k) > 100) {
     logger.info(`[GoldRateService] Today's rate found in DB (source: ${record.source})`);
