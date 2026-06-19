@@ -1,32 +1,29 @@
 const nodemailer = require('nodemailer');
 const { Resend } = require('resend');
 const dotenv = require('dotenv');
-dotenv.config(); // Load environment variables from .env
+const fs = require('fs');
+const { generateEmailCard } = require('../../../shared/templates/emailCardTemplate');
+const { Notification } = require('../../../models');
+dotenv.config();
 
-/**
- * Email Service
- * Handles production-level email delivery using Resend or Nodemailer
- */
 class EmailService {
   constructor() {
     this.apiKey = process.env.RESEND_API_KEY;
     this.resend = this.apiKey && !this.apiKey.includes('re_abcd') ? new Resend(this.apiKey) : null;
     
-    // Fallback/Primary Transporter (Nodemailer)
-    // Using MAIL_ environment variables as requested by the user
     const host = process.env.MAIL_HOST || process.env.SMTP_HOST || 'smtp.mailtrap.io';
     const port = parseInt(process.env.MAIL_PORT || process.env.SMTP_PORT || 2525);
     
     this.transporter = nodemailer.createTransport({
       host: host,
       port: port,
-      secure: port === 465, // True only for 465 SSL, false for 587 STARTTLS
+      secure: port === 465,
       auth: {
         user: process.env.MAIL_USER || process.env.SMTP_USER,
         pass: process.env.MAIL_PASS || process.env.SMTP_PASS,
       },
       tls: {
-        rejectUnauthorized: false // Often needed for shared hosting
+        rejectUnauthorized: false
       }
     });
 
@@ -35,262 +32,454 @@ class EmailService {
 
   async initialize() {
     console.log('--------------------------------------------------');
-    console.log('[Email Service] ENTERPRISE INITIALIZATION');
-    
+    console.log('[Email Service] ENTERPRISE INITIALIZATION (Multilingual)');
     if (this.resend && this.apiKey && !this.apiKey.includes('re_abcd')) {
       console.log('[Email Service] Mode: RESEND SDK (Production Ready)');
     } else {
       console.log('[Email Service] Mode: NODEMAILER SMTP (Active Configuration)');
-      this.transporter.verify((error) => {
-        if (error) console.error('[Email Service] SMTP Verification Failed:', error.message);
-        else console.log('[Email Service] SMTP Server Connection: SUCCESS');
-      });
     }
     console.log('--------------------------------------------------');
   }
 
-  async sendEmail(to, subject, html) {
+  async sendEmail(to, subject, html, attachments = []) {
     const fromName = "SDRS Gold Finance";
     const fromEmail = process.env.MAIL_FROM || "onboarding@resend.dev";
     const fullFrom = `${fromName} <${fromEmail}>`;
     
-    console.log(`[Email Service] REQUEST START: Sending to ${to}`);
-    console.log(`[Email Service] PAYLOAD:`, { from: fullFrom, to, subject });
-
     try {
       if (this.resend) {
-        console.log(`[Email Service] DISPATCHING VIA RESEND API...`);
-        const { data, error } = await this.resend.emails.send({
+        const { error } = await this.resend.emails.send({
           from: fullFrom,
           to: [to],
           subject: subject,
           html: html,
+          attachments: attachments
         });
-
-        if (error) {
-          console.error(`[Email Service] RESEND API FAILURE:`, error);
-          console.error(`[Email Service] ERROR MESSAGE:`, error.message);
-          return false;
-        }
-
-        console.log(`[Email Service] EMAIL SUCCESS:`, data);
-        console.log(`[Email Service] PROVIDER RESPONSE ID: ${data.id}`);
+        if (error) return false;
         return true;
       } else {
-        console.log(`[Email Service] DISPATCHING VIA NODEMAILER SMTP...`);
-        const info = await this.transporter.sendMail({
+        await this.transporter.sendMail({
           from: fullFrom,
           to,
           subject,
           html,
+          attachments
         });
-        console.log(`[Email Service] EMAIL SUCCESS:`, info.messageId);
         return true;
       }
     } catch (err) {
-      console.error(`--------------------------------------------------`);
-      console.error(`[Email Service] CRITICAL SYSTEM FAILURE`);
       console.error(`[Email Service] EXCEPTION:`, err.message);
-      if (err.stack) console.error(`[Email Service] STACK TRACE:`, err.stack);
-      console.error(`--------------------------------------------------`);
       return false;
     }
   }
 
-  /**
-   * Send Welcome Email with Credentials
-   */
+  async _createDashboardNotification(customerId, type, enMessage, taMessage, language) {
+    if (!customerId) return;
+    try {
+      const message = language === 'ta' ? taMessage : enMessage;
+      await Notification.create({
+        customerId,
+        type,
+        message,
+        isRead: false
+      });
+    } catch (error) {
+      console.error('[Email Service] Failed to create dashboard notification:', error.message);
+    }
+  }
+
+  // 1. Customer Registration
   async sendWelcomeEmail(customer, credentials) {
-    console.log(`[Email Service] COMPOSING: Welcome email for ${customer.customerCode}`);
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'SDRS கோல்டு பைனான்ஸ்க்கு வரவேற்கிறோம்' : 'Welcome to SDRS Gold Finance';
     
-    const subject = 'Welcome to SDRS Gold Finance - Your Account Access';
-    const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #1a1a1a; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 12px;">
-        <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #D4AF37; margin: 0; font-size: 28px;">SDRS GOLD FINANCE</h1>
-          <p style="color: #6b7280; margin: 5px 0 0 0; font-size: 14px; letter-spacing: 2px;">JEWELLERY ERP</p>
-        </div>
-        
-        <h2 style="color: #111827; font-size: 20px;">Welcome, ${customer.firstName}!</h2>
-        <p>Your enterprise account has been successfully created. You can now access the SDRS Gold Finance portal using the credentials below:</p>
-        
-        <div style="background: #fdfbf7; padding: 25px; border-radius: 16px; border: 1px solid #fef3c7; margin: 25px 0;">
-          <h3 style="margin: 0 0 15px 0; color: #b45309; font-size: 16px;">Login Credentials</h3>
-          <p style="margin: 8px 0;"><strong>Customer ID:</strong> <span style="color: #D4AF37;">${credentials.customerCode}</span></p>
-          <p style="margin: 8px 0;"><strong>Mobile/Username:</strong> ${credentials.mobile}</p>
-          <p style="margin: 8px 0;"><strong>Temporary Password:</strong> <code style="background: #fff; padding: 4px 8px; border-radius: 4px; border: 1px solid #e5e7eb;">${credentials.password}</code></p>
-        </div>
-        
-        <p style="color: #ef4444; font-size: 13px; font-weight: 600;">⚠️ For security, you will be required to change this password on your first login.</p>
-        
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%); color: white; padding: 14px 30px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);">Login to Dashboard</a>
-        </div>
-        
-        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 30px 0;" />
-        <p style="color: #6b7280; font-size: 12px; text-align: center;">This is an automated message. Please do not reply to this email.<br>&copy; 2026 SDRS Gold Finance Jewellery ERP</p>
-      </div>
+    const content = isTa ? `
+      <p>SDRS Gold Finance குடும்பத்தில் உங்களை அன்புடன் வரவேற்கிறோம்.</p>
+      <p>உங்கள் கணக்கு வெற்றிகரமாக உருவாக்கப்பட்டுள்ளது.</p>
+      <p><strong>வாடிக்கையாளர் குறியீடு:</strong><br/>${customer.customerCode}</p>
+      <p>தற்காலிக கடவுச்சொல்: <strong>${credentials?.password || '***'}</strong></p>
+    ` : `
+      <p>Welcome to SDRS Gold Finance.</p>
+      <p>Your account has been created successfully.</p>
+      <p><strong>Customer Code:</strong><br/>${customer.customerCode}</p>
+      <p>Temporary Password: <strong>${credentials?.password || '***'}</strong></p>
     `;
-    return await this.sendEmail(customer.email, subject, html);
+
+    const html = generateEmailCard({
+      title,
+      customerName: customer.firstName,
+      content,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'ACCOUNT_CREATED', 
+        `Welcome to SDRS Gold Finance. Your account is created successfully. Customer Code: ${customer.customerCode}`,
+        `SDRS Gold Finance குடும்பத்தில் உங்களை அன்புடன் வரவேற்கிறோம். உங்கள் கணக்கு உருவாக்கப்பட்டுள்ளது. குறியீடு: ${customer.customerCode}`,
+        lang
+      );
+    }
+    return success;
   }
 
-  /**
-   * Send Professional KYC Upload Request Email in English and Tamil
-   */
+  // 2. Gold Loan Approved (Pre-Approval included)
+  async sendGoldLoanPreApprovalEmail(customer, loanNumber, amount) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'தங்க கடன் ஒப்புதல் பெறப்பட்டுள்ளது' : 'Gold Loan Approved';
+    
+    const content = isTa ? `
+      <p>உங்கள் தங்க கடன் ஒப்புதல் பெறப்பட்டுள்ளது.</p>
+      <p><strong>கடன் எண்:</strong><br/>${loanNumber}</p>
+      <p><strong>கடன் தொகை:</strong><br/>₹${amount}</p>
+    ` : `
+      <p>Your Gold Loan has been approved.</p>
+      <p><strong>Loan Number:</strong><br/>${loanNumber}</p>
+      <p><strong>Loan Amount:</strong><br/>₹${amount}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      customerName: customer.firstName,
+      content,
+      referenceNumber: loanNumber,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'LOAN_APPROVED', 
+        `Your Gold Loan has been approved. Loan Number: ${loanNumber}, Amount: ₹${amount}`,
+        `உங்கள் தங்க கடன் ஒப்புதல் பெறப்பட்டுள்ளது. கடன் எண்: ${loanNumber}, தொகை: ₹${amount}`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 3. Payment Received
+  async sendPaymentReceiptEmail(customer, amount, invoiceNumber, invoice) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'பணம் வெற்றிகரமாக பெறப்பட்டது' : 'Payment Received Successfully';
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 20px;">உங்கள் பணம் வெற்றிகரமாக பெறப்பட்டது.</p>
+      <ul style="padding-left: 20px; line-height: 1.8;">
+        <li><strong>ரசீது எண்:</strong> ${invoiceNumber}</li>
+        <li><strong>தொகை:</strong> ₹${amount}</li>
+      </ul>
+    ` : `
+      <p style="margin-bottom: 20px;">Payment received successfully.</p>
+      <ul style="padding-left: 20px; line-height: 1.8;">
+        <li><strong>Receipt Number:</strong> ${invoiceNumber}</li>
+        <li><strong>Amount:</strong> ₹${amount}</li>
+      </ul>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    let attachments = [];
+    if (invoice && invoice.pdfPath && fs.existsSync(invoice.pdfPath)) {
+      attachments.push({ filename: `Receipt-${invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' });
+    }
+
+    const success = await this.sendEmail(customer.email, title, html, attachments);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'PAYMENT_RECEIVED', 
+        `Payment received successfully. Amount: ₹${amount}`,
+        `உங்கள் பணம் வெற்றிகரமாக பெறப்பட்டது. தொகை: ₹${amount}`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 4. Ready For Closure
+  async sendReadyForClosureEmail(customer, loanNumber) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'கடன் முடிப்பதற்கு தயார்' : 'Ready For Closure';
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 10px;">உங்கள் கடன் முழுமையாக செலுத்தப்பட்டுள்ளது.</p>
+      <p><strong>கடன் எண்:</strong> ${loanNumber}</p>
+      <p style="margin-top: 10px;">கடன் முடிப்பதற்கு தயார் நிலையில் உள்ளது.</p>
+    ` : `
+      <p style="margin-bottom: 10px;">Your loan has been fully repaid and is ready for closure.</p>
+      <p><strong>Loan Number:</strong> ${loanNumber}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'READY_FOR_CLOSURE', 
+        `Your loan ${loanNumber} has been fully repaid and is ready for closure.`,
+        `உங்கள் கடன் ${loanNumber} முழுமையாக செலுத்தப்பட்டுள்ளது. கடன் முடிப்பதற்கு தயார் நிலையில் உள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 5. Loan Closed
+  async sendLoanClosureEmail(customer, loan, invoice) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'தங்க கடன் வெற்றிகரமாக முடிக்கப்பட்டுள்ளது' : 'Gold Loan Closed';
+    
+    const closureDateStr = new Date().toLocaleDateString(isTa ? 'ta-IN' : 'en-IN');
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 20px;">தங்களின் தங்கக் கடன் வெற்றிகரமாக முடிக்கப்பட்டுள்ளது.</p>
+      
+      <p style="margin: 0; font-weight: 600;">கடன் விவரங்கள்:</p>
+      <ul style="margin-top: 5px; padding-left: 20px; line-height: 1.8;">
+        <li><strong>கடன் எண்:</strong> ${loan.loanNumber}</li>
+        <li><strong>வாடிக்கையாளர் பெயர்:</strong> ${customer.firstName}</li>
+        <li><strong>கடன் தொகை:</strong> ₹${loan.loanAmount}</li>
+        <li><strong>செலுத்திய மொத்த தொகை:</strong> ₹${loan.totalPaid}</li>
+        <li><strong>கடன் முடிப்பு தேதி:</strong> ${closureDateStr}</li>
+      </ul>
+
+      <p style="margin-top: 20px; margin-bottom: 20px;">தங்களின் அனைத்து நிலுவைத் தொகைகளும் முழுமையாக செலுத்தப்பட்டுள்ளன.</p>
+      
+      <p style="margin: 0; font-weight: 600;">அடுத்த கட்டம்:</p>
+      <p style="margin-top: 5px;">தங்களின் அடகு வைத்த நகையை எங்கள் கிளையில் பெற்றுக்கொள்ளலாம்.</p>
+      
+      <p style="margin-top: 20px; font-weight: 600;">SDRS Gold Finance நிறுவனத்தைத் தேர்வு செய்ததற்கு நன்றி.</p>
+    ` : `
+      <p style="margin-bottom: 20px;">Your Gold Loan has been successfully closed.</p>
+      
+      <p style="margin: 0; font-weight: 600;">Loan Details:</p>
+      <ul style="margin-top: 5px; padding-left: 20px; line-height: 1.8;">
+        <li><strong>Loan Number:</strong> ${loan.loanNumber}</li>
+        <li><strong>Customer Name:</strong> ${customer.firstName}</li>
+        <li><strong>Loan Amount:</strong> ₹${loan.loanAmount}</li>
+        <li><strong>Total Paid:</strong> ₹${loan.totalPaid}</li>
+        <li><strong>Closure Date:</strong> ${closureDateStr}</li>
+      </ul>
+
+      <p style="margin-top: 20px; margin-bottom: 20px;">We are pleased to inform you that all outstanding dues have been cleared successfully.</p>
+      
+      <p style="margin: 0; font-weight: 600;">Next Step:</p>
+      <p style="margin-top: 5px;">Your pledged ornament is now eligible for release from our branch.</p>
+      
+      <p style="margin-top: 20px; font-weight: 600;">Thank you for choosing SDRS Gold Finance.</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    let attachments = [];
+    if (invoice && invoice.pdfPath && fs.existsSync(invoice.pdfPath)) {
+      attachments.push({ filename: `Closure-${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' });
+    }
+
+    const success = await this.sendEmail(customer.email, title, html, attachments);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'LOAN_CLOSED', 
+        `Your Gold Loan ${loan.loanNumber} has been successfully closed.`,
+        `உங்கள் தங்க கடன் ${loan.loanNumber} வெற்றிகரமாக முடிக்கப்பட்டுள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 6. Ornament Released
+  async sendOrnamentReleaseEmail(customer, loan, invoice) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'நகை வெற்றிகரமாக வழங்கப்பட்டுள்ளது' : 'Ornament Released Successfully';
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 10px;">அடமானமாக வைக்கப்பட்ட நகை வெற்றிகரமாக வழங்கப்பட்டுள்ளது.</p>
+      <p><strong>கடன் எண்:</strong> ${loan.loanNumber}</p>
+    ` : `
+      <p style="margin-bottom: 10px;">Your pledged ornament has been released successfully.</p>
+      <p><strong>Loan Number:</strong> ${loan.loanNumber}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    let attachments = [];
+    if (invoice && invoice.pdfPath && fs.existsSync(invoice.pdfPath)) {
+      attachments.push({ filename: `Release-${invoice.invoiceNumber}.pdf`, path: invoice.pdfPath, contentType: 'application/pdf' });
+    }
+
+    const success = await this.sendEmail(customer.email, title, html, attachments);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'ORNAMENT_RELEASED', 
+        `Your pledged ornament for loan ${loan.loanNumber} has been released successfully.`,
+        `கடன் ${loan.loanNumber} - அடமானமாக வைக்கப்பட்ட நகை வெற்றிகரமாக வழங்கப்பட்டுள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 7. Chit Fund Payment
+  async sendChitFundPaymentEmail(customer, amount, schemeName) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'சீட்டு தொகை பெறப்பட்டது' : 'Chit Fund Payment Received';
+    
+    const content = isTa ? `
+      <p>உங்கள் சீட்டு தொகை வெற்றிகரமாக பெறப்பட்டுள்ளது.</p>
+      <p><strong>தொகை:</strong><br/>₹${amount}</p>
+      <p><strong>திட்டம்:</strong><br/>${schemeName}</p>
+    ` : `
+      <p>Your Chit Fund payment has been received.</p>
+      <p><strong>Amount:</strong><br/>₹${amount}</p>
+      <p><strong>Scheme:</strong><br/>${schemeName}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      customerName: customer.firstName,
+      content,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'CHIT_PAYMENT_RECEIVED', 
+        `Your Chit Fund payment of ₹${amount} for ${schemeName} has been received.`,
+        `${schemeName} திட்டத்திற்கான உங்கள் சீட்டு தொகை ₹${amount} வெற்றிகரமாக பெறப்பட்டுள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 8. Jewelry Order Created
+  async sendJewelryOrderCreatedEmail(customer, orderNumber) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'நகை ஆர்டர் பதிவு செய்யப்பட்டுள்ளது' : 'Jewelry Order Created';
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 10px;">உங்கள் நகை ஆர்டர் வெற்றிகரமாக பதிவு செய்யப்பட்டுள்ளது.</p>
+      <p><strong>ஆர்டர் எண்:</strong> ${orderNumber}</p>
+    ` : `
+      <p style="margin-bottom: 10px;">Your Jewelry Order has been placed successfully.</p>
+      <p><strong>Order Number:</strong> ${orderNumber}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'ORDER_CREATED', 
+        `Your Jewelry Order ${orderNumber} has been placed successfully.`,
+        `உங்கள் நகை ஆர்டர் ${orderNumber} வெற்றிகரமாக பதிவு செய்யப்பட்டுள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // 9. Jewelry Ready For Delivery
+  async sendJewelryReadyForDeliveryEmail(customer, orderNumber) {
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
+
+    const title = isTa ? 'நகை வழங்க தயாராக உள்ளது' : 'Jewelry Ready For Delivery';
+    
+    const content = isTa ? `
+      <p style="margin-bottom: 10px;">உங்கள் நகை ஆர்டர் வழங்க தயாராக உள்ளது.</p>
+      <p><strong>ஆர்டர் எண்:</strong> ${orderNumber}</p>
+    ` : `
+      <p style="margin-bottom: 10px;">Your Jewelry Order is ready for delivery.</p>
+      <p><strong>Order Number:</strong> ${orderNumber}</p>
+    `;
+
+    const html = generateEmailCard({
+      title,
+      content,
+      language: lang
+    });
+
+    const success = await this.sendEmail(customer.email, title, html);
+    if (success) {
+      await this._createDashboardNotification(customer.id, 'ORDER_READY_FOR_DELIVERY', 
+        `Your Jewelry Order ${orderNumber} is ready for delivery.`,
+        `உங்கள் நகை ஆர்டர் ${orderNumber} வழங்க தயாராக உள்ளது.`,
+        lang
+      );
+    }
+    return success;
+  }
+
+  // Backwards compatibility for existing NotificationService calls
   async sendKycUploadRequestEmail(customer, message) {
-    console.log(`[Email Service] COMPOSING: Professional KYC Upload Request email for ${customer.firstName} in English & Tamil`);
-    
-    const subject = 'Action Required: Upload KYC Documents / கேஒய்சி ஆவணங்களை பதிவேற்றவும் - SDRS Gold';
-    const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0; margin: 0; color: #1a1a1a; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-        <!-- Gold Header Banner -->
-        <div style="background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%); padding: 35px 20px; text-align: center; color: white;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">SDRS GOLD FINANCE</h1>
-          <p style="margin: 5px 0 0 0; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; font-weight: bold; opacity: 0.9;">Professional Jewellery ERP</p>
-        </div>
-        
-        <div style="padding: 30px 25px; background-color: #ffffff;">
-          <h2 style="color: #111827; font-size: 20px; margin-top: 0; font-weight: 700; border-bottom: 2px solid #f3f4f6; padding-bottom: 12px;">
-            KYC Document Request / கேஒய்சி ஆவணங்கள் தேவைப்படுகிறது
-          </h2>
-          
-          <p style="font-size: 15px; line-height: 1.6; color: #374151;">
-            Dear <strong>${customer.firstName} ${customer.lastName || ''}</strong>,<br>
-            To complete your profile verification and activate your services, you are requested to upload your KYC documents immediately.
-          </p>
+    if (!customer || !customer.email) return false;
+    const lang = customer.preferredLanguage || 'en';
+    const isTa = lang === 'ta';
 
-          <p style="font-size: 15px; line-height: 1.6; color: #374151; font-style: italic; margin-top: 10px;">
-            மதிப்பிற்குரிய <strong>${customer.firstName}</strong>,<br>
-            தங்களது கணக்கு விவரங்களை சரிபார்த்து சேவைகளை துவங்க தங்களின் கேஒய்சி (KYC) ஆவணங்களை உடனடியாக பதிவேற்றம் செய்யுமாறு கேட்டுக்கொள்கிறோம்.
-          </p>
-          
-          <!-- Message Card -->
-          <div style="background: #fffdf5; padding: 20px; border-radius: 12px; border-left: 4px solid #D4AF37; margin: 25px 0;">
-            <p style="margin: 0; font-weight: bold; color: #854d0e; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
-              Message from Administrator / மேலாளரின் செய்தி:
-            </p>
-            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #1f2937; font-weight: 600;">
-              "${message || 'Please upload clear copies of your Aadhaar Card, PAN Card, and a signature copy to proceed.'}"
-            </p>
-          </div>
-
-          <!-- Required Documents List -->
-          <div style="margin-top: 30px; background: #fdfdfd; border: 1px solid #f3f4f6; border-radius: 12px; padding: 20px;">
-            <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-              Required Documents / தேவைப்படும் ஆவணங்கள்:
-            </h3>
-            
-            <ul style="padding-left: 20px; margin: 0; color: #4b5563; font-size: 14px; line-height: 1.8;">
-              <li><strong>Aadhaar Card (Front & Back):</strong> அசல் ஆதார் கார்டின் முன் மற்றும் பின் பகுதி.</li>
-              <li><strong>PAN Card:</strong> அசல் பான் கார்டு நகல்.</li>
-              <li><strong>Address Proof:</strong> தற்போதைய முகவரி சான்று (if different from Aadhaar).</li>
-              <li><strong>Signature Scan:</strong> தங்களது கையொப்ப நகல்.</li>
-            </ul>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0 15px 0;">
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); font-size: 15px;">
-              Upload Documents / பதிவேற்றவும்
-            </a>
-          </div>
-          
-          <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 30px 0;" />
-          
-          <div style="text-align: center; color: #6b7280; font-size: 12px; line-height: 1.6;">
-            <p style="margin: 0 0 5px 0;"><strong>SDRS Gold Finance & Jewellery ERP</strong></p>
-            <p style="margin: 0; font-size: 11px; color: #9ca3af;">This is a system generated notification. Please do not reply directly to this mail.</p>
-          </div>
-        </div>
-      </div>
+    const title = isTa ? 'கேஒய்சி ஆவணங்கள் தேவை' : 'KYC Document Request';
+    const content = isTa ? `
+      <p>தங்களது கணக்கு விவரங்களை சரிபார்க்க, தங்களின் கேஒய்சி ஆவணங்களை உடனடியாக பதிவேற்றம் செய்யுமாறு கேட்டுக்கொள்கிறோம்.</p>
+      <p><strong>செய்தி:</strong> "${message || 'ஆதார், பான் மற்றும் கையொப்ப நகலை தெளிவாக பதிவேற்றவும்.'}"</p>
+    ` : `
+      <p>To complete your profile verification, please upload your KYC documents.</p>
+      <p><strong>Message:</strong> "${message || 'Please upload clear copies of Aadhaar, PAN, and signature.'}"</p>
     `;
-    return await this.sendEmail(customer.email, subject, html);
+
+    const html = generateEmailCard({
+      title,
+      customerName: customer.firstName,
+      content,
+      language: lang
+    });
+
+    return await this.sendEmail(customer.email, title, html);
   }
 
-  /**
-   * Send Professional Gold Loan Pre-Approval Email in English and Tamil
-   */
-  async sendGoldLoanPreApprovalEmail(customer, message) {
-    console.log(`[Email Service] COMPOSING: Professional Gold Loan Pre-Approval email for ${customer.firstName} in English & Tamil`);
-    
-    const subject = 'Gold Loan Pre-Approved / தங்க நகை கடன் முன் அனுமதி - SDRS Gold';
-    const html = `
-      <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 0; margin: 0; color: #1a1a1a; max-width: 600px; margin: auto; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-        <!-- Gold Header Banner -->
-        <div style="background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%); padding: 35px 20px; text-align: center; color: white;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 800; letter-spacing: 2px; text-shadow: 0 2px 4px rgba(0,0,0,0.15);">SDRS GOLD FINANCE</h1>
-          <p style="margin: 5px 0 0 0; font-size: 12px; letter-spacing: 4px; text-transform: uppercase; font-weight: bold; opacity: 0.9;">Professional Jewellery ERP</p>
-        </div>
-        
-        <div style="padding: 30px 25px; background-color: #ffffff;">
-          <h2 style="color: #111827; font-size: 20px; margin-top: 0; font-weight: 700; border-bottom: 2px solid #f3f4f6; padding-bottom: 12px;">
-            Gold Loan Pre-Approval / தங்க நகை கடன் முன் அனுமதி
-          </h2>
-          
-          <p style="font-size: 15px; line-height: 1.6; color: #374151;">
-            Dear <strong>${customer.firstName} ${customer.lastName || ''}</strong>,<br>
-            We are pleased to inform you that your online gold loan request has been successfully pre-approved by our administrator. Please find the details and next steps below.
-          </p>
-
-          <p style="font-size: 15px; line-height: 1.6; color: #374151; font-style: italic; margin-top: 10px;">
-            மதிப்பிற்குரிய <strong>${customer.firstName}</strong>,<br>
-            தங்களின் ஆன்லைன் தங்க நகை கடன் விண்ணப்பம் எங்களது மேலாளரால் சரிபார்க்கப்பட்டு வெற்றிகரமாக முன் அனுமதி வழங்கப்பட்டுள்ளது என்பதை மகிழ்ச்சியுடன் தெரிவித்துக் கொள்கிறோம்.
-          </p>
-          
-          <!-- English Notification Card -->
-          <div style="background: #fffdf5; padding: 20px; border-radius: 12px; border-left: 4px solid #D4AF37; margin: 25px 0;">
-            <p style="margin: 0; font-weight: bold; color: #854d0e; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
-              🇬🇧 English Instruction
-            </p>
-            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #1f2937; font-weight: 600;">
-              "${message}"
-            </p>
-          </div>
-
-          <!-- Tamil Notification Card -->
-          <div style="background: #f9fbfd; padding: 20px; border-radius: 12px; border-left: 4px solid #2563eb; margin: 25px 0;">
-            <p style="margin: 0; font-weight: bold; color: #1e3a8a; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">
-              🇮🇳 தமிழ் அறிவிப்பு (Tamil Instruction)
-            </p>
-            <p style="margin: 0; font-size: 15px; line-height: 1.6; color: #1e293b; font-weight: 600;">
-              "தங்களின் நகைக் கடன் செயல்முறை வெற்றிகரமாக முடிந்தது! தயவுசெய்து தங்களின் தங்க நகைகளுடன் எங்களது கடைக்கு வந்து தங்களுக்குரிய பணத்தைப் பெற்றுக் கொள்ளுமாறு கேட்டுக்கொள்கிறோம்."
-            </p>
-          </div>
-
-          <!-- Next Steps Section -->
-          <div style="margin-top: 30px; background: #fdfdfd; border: 1px solid #f3f4f6; border-radius: 12px; padding: 20px;">
-            <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">
-              Steps to Collect Your Cash / பணத்தைப் பெற எளிய வழிமுறைகள்:
-            </h3>
-            
-            <ul style="padding-left: 20px; margin: 0; color: #4b5563; font-size: 14px; line-height: 1.8;">
-              <li><strong>Bring Your Gold:</strong> Visit our shop with the gold ornaments/jewellery you listed in the application. (தங்களின் தங்க நகைகளை கடைக்கு கொண்டு வரவும்)</li>
-              <li><strong>Purity & Weight Check:</strong> Our experts will run a secure physical valuation in your presence. (நகையின் தரம் மற்றும் எடை தங்களின் முன்னிலையில் சரிபார்க்கப்படும்)</li>
-              <li><strong>Instant Disbursal:</strong> Collect the cash immediately or receive it as a direct bank transfer. (உடனடியாக ரொக்கமாகவோ அல்லது வங்கி கணக்கிலோ பெற்றுக்கொள்ளலாம்)</li>
-              <li><strong>Documents:</strong> Please carry a valid original ID proof (Aadhaar Card, PAN Card, etc.). (அசல் அடையாள அட்டை ஒன்றை கொண்டு வரவும்)</li>
-            </ul>
-          </div>
-          
-          <div style="text-align: center; margin: 35px 0 15px 0;">
-            <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/login" style="background: linear-gradient(135deg, #D4AF37 0%, #B8860B 100%); color: white; padding: 14px 35px; text-decoration: none; border-radius: 10px; font-weight: bold; display: inline-block; box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3); font-size: 15px;">
-              View Loan Status / விவரங்களை பார்க்க
-            </a>
-          </div>
-          
-          <hr style="border: 0; border-top: 1px solid #f3f4f6; margin: 30px 0;" />
-          
-          <div style="text-align: center; color: #6b7280; font-size: 12px; line-height: 1.6;">
-            <p style="margin: 0 0 5px 0;"><strong>SDRS Gold Finance & Jewellery ERP</strong></p>
-            <p style="margin: 0 0 15px 0;">Customer support is available at our branch office during regular business hours.</p>
-            <p style="margin: 0; font-size: 11px; color: #9ca3af;">This is a system generated notification. Please do not reply directly to this mail.</p>
-          </div>
-        </div>
-      </div>
-    `;
-    return await this.sendEmail(customer.email, subject, html);
+  // Generic backward compatibility
+  async sendAccountApprovalEmail(customer) {
+    return await this.sendWelcomeEmail(customer, null);
   }
 }
 
 module.exports = new EmailService();
-
-
-

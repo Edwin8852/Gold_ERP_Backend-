@@ -25,6 +25,7 @@ const getLiveRates = async (req, res) => {
     // Return clean API response as requested
     return res.status(200).json({
       success: true,
+      ...rates,
       gold18K: Number(rates.gold_18k || rates.gold18k || rates.gold18K),
       gold22K: Number(rates.gold_22k || rates.gold22k || rates.gold22K),
       gold24K: Number(rates.gold_24k || rates.gold24k || rates.gold24K),

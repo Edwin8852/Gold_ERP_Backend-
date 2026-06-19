@@ -163,7 +163,7 @@ module.exports = (sequelize, DataTypes) => {
       field: 'repayment_terms'
     },
     status: {
-      type: DataTypes.ENUM('PENDING_APPROVAL', 'UNDER_VERIFICATION', 'APPROVED', 'ACTIVE', 'REJECTED', 'CLOSED', 'OVERDUE'),
+      type: DataTypes.ENUM('PENDING_APPROVAL', 'UNDER_VERIFICATION', 'APPROVED', 'ACTIVE', 'REJECTED', 'READY_FOR_CLOSURE', 'CLOSED', 'ORNAMENT_RELEASED'),
       defaultValue: 'PENDING_APPROVAL',
     },
     riskScore: {
@@ -224,6 +224,56 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.UUID,
       allowNull: true,
       field: 'approved_by'
+    },
+    loanClosed: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: 'loan_closed'
+    },
+    loanClosedDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'loan_closed_date'
+    },
+    loanClosedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      field: 'loan_closed_by'
+    },
+    closureRemarks: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'closure_remarks'
+    },
+    ornamentReleased: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: 'ornament_released'
+    },
+    ornamentReleaseDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'ornament_release_date'
+    },
+    ornamentReleasedBy: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      field: 'ornament_released_by'
+    },
+    receivedByCustomer: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+      field: 'received_by_customer'
+    },
+    receivedDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+      field: 'received_date'
+    },
+    releaseNotes: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      field: 'release_notes'
     }
   }, {
     timestamps: true,
@@ -241,6 +291,7 @@ module.exports = (sequelize, DataTypes) => {
     GoldLoan.hasMany(models.LoanHistory, { foreignKey: 'loanId', as: 'histories' });
     GoldLoan.hasMany(models.LoanPayment, { foreignKey: 'loanId', as: 'loanPayments' });
     GoldLoan.hasOne(models.LoanLedger, { foreignKey: 'loanId', as: 'ledger' });
+    GoldLoan.hasMany(models.LoanLedgerEntry, { foreignKey: 'loanId', as: 'ledgerEntries' });
   };
 
 

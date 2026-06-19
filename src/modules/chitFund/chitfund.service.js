@@ -397,6 +397,10 @@ class ChitFundService {
       try {
         const customer = await Customer.findByPk(subscriber.customerId, { transaction });
         if (customer) {
+          const emailService = require('../notification/email/email.service');
+          if (customer.email) {
+            emailService.sendChitFundPaymentEmail(customer, paidAmount, scheme.schemeName);
+          }
           await NotificationService.createNotification({
             customerId: customer.id,
             type: 'PAYMENT_SUCCESS',

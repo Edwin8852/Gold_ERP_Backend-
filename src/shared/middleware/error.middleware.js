@@ -11,6 +11,13 @@ const errorHandler = (err, req, res, next) => {
   let message = err.message || 'Internal Server Error';
 
   if (process.env.NODE_ENV === 'development' || !err.isOperational) {
+    console.error('ERROR DETAILS:', {
+      message: err.message,
+      stack: err.stack,
+      requestBody: req.body,
+      params: req.params,
+      query: req.query
+    });
     logger.error(`${err.name}: ${err.message}\n${err.stack}`);
   } else {
     logger.warn(`Operational Error: ${err.message}`);
@@ -31,7 +38,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Handle Joi/Zod Validation Errors
-  if (err.isJoi || err.name === 'ZodError') {
+  if (err.isJoi || err.name === 'ZodError' || err.name === 'ValidationError') {
     statusCode = 400;
     message = err.details ? err.details.map((d) => d.message).join(', ') : err.message;
   }

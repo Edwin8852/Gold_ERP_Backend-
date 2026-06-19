@@ -62,6 +62,11 @@ app.get('/', (req, res) => {
   res.json({ message: 'Welcome to SDRS Gold Finance & Jewelry ERP API' });
 });
 
+// Health Check Endpoint
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date() });
+});
+
 // Mount All API Routes
 app.use('/api', routes);
 

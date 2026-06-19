@@ -129,6 +129,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       field: 'lastRiskUpdate'
     },
+    preferredLanguage: {
+      type: DataTypes.ENUM('en', 'ta'),
+      defaultValue: 'en',
+      field: 'preferredLanguage'
+    },
 
   }, {
     timestamps: true,

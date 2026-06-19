@@ -205,9 +205,32 @@ const refreshRate = async (req, res) => {
 };
 
 // ──────────────────────────────────────────────────────────────────────────
+// GET /api/gold-rates/logs
+// ──────────────────────────────────────────────────────────────────────────
+
+const getRateLogs = async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit, 10) || 10;
+    const logs = await goldRateService.getLatestLogs(limit);
+    return res.status(200).json({
+      success: true,
+      data: logs,
+    });
+  } catch (error) {
+    logger.error(`[GoldRateController] getRateLogs error: ${error.message}`);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to fetch gold rate logs.',
+      error: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+    });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────
 
 module.exports = {
   getLatestRate,
   getLiveRate,
   refreshRate,
+  getRateLogs,
 };

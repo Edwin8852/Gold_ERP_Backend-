@@ -20,7 +20,12 @@ class ValuationService {
     }
 
     // Determine base rate based on purity
-    const baseRate = purity === '24K' ? currentRate.gold24KRate : currentRate.gold22KRate;
+    let baseRate = 0;
+    if (purity === '24K') baseRate = currentRate.gold24k || currentRate.gold24KRate;
+    else if (purity === '22K') baseRate = currentRate.gold22k || currentRate.gold22KRate;
+    else if (purity === '18K') baseRate = currentRate.gold18k || currentRate.gold18KRate;
+    
+    if (!baseRate) throw new Error(`Rate for purity ${purity} unavailable`);
     
     // Gross Value
     const estimatedGoldValue = weight * baseRate;

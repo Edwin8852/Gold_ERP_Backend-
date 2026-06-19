@@ -6,13 +6,7 @@ const ledgerService = require('../ledger/ledger.service');
 const processPaymentBreakdown = (loan, paymentAmount, paymentType) => {
   const outstandingPrincipal = parseFloat(loan.remainingPrincipal || 0);
   const outstandingInterest = parseFloat(loan.interestAmount || loan.monthlyInterest || 0);
-  
-  // Calculate Penalty
-  const daysOverdue = Math.max(0, Math.ceil((new Date() - new Date(loan.dueDate)) / (1000 * 60 * 60 * 24)));
-  let outstandingPenalty = 0;
-  if (daysOverdue > 0 || loan.status === 'OVERDUE') {
-    outstandingPenalty = parseFloat((outstandingPrincipal * 0.012).toFixed(2)); // ₹300 for ₹25,000
-  }
+  const outstandingPenalty = parseFloat(loan.penaltyAmount || 0);
 
   let remainingPayment = paymentAmount;
   let penaltyPaid = 0;
@@ -54,7 +48,7 @@ const processPaymentBreakdown = (loan, paymentAmount, paymentType) => {
 
   if (newRemainingPrincipal + newInterestAmount + newPenaltyAmount <= 0) {
     paymentStatus = 'FULLY_PAID';
-    loanStatus = 'CLOSED';
+    loanStatus = 'READY_FOR_CLOSURE';
   } else if (principalPaid === 0 && interestPaid > 0 && penaltyPaid > 0) {
     paymentStatus = 'PENALTY_PAID';
     loanStatus = 'ACTIVE';
@@ -149,8 +143,8 @@ const processPayment = async (paymentData, userId) => {
 
     // Log to LoanHistory
     const loanHistoryService = require('../goldFinance/loanHistory.service');
-    if (breakdown.loanStatus === 'CLOSED') {
-      await loanHistoryService.logHistory(loan.id, 'LOAN_CLOSED', `Loan closed successfully. Full repayment of remaining balance received. Paid Amount: ₹${paymentAmount}`, { transaction: t });
+    if (breakdown.loanStatus === 'READY_FOR_CLOSURE') {
+      await loanHistoryService.logHistory(loan.id, 'READY_FOR_CLOSURE', `Loan fully repaid and ready for closure. Full repayment of remaining balance received. Paid Amount: ₹${paymentAmount}`, { transaction: t });
     } else {
       await loanHistoryService.logHistory(loan.id, 'INTEREST_PAID', `Repayment of ₹${paymentAmount} received. Remaining principal: ₹${breakdown.newRemainingPrincipal}`, { transaction: t });
     }
@@ -171,7 +165,7 @@ const processPayment = async (paymentData, userId) => {
       loanId: loan.id,
       paymentId: payment.id,
       invoiceNumber: invoiceNumber,
-      invoiceType: breakdown.loanStatus === 'CLOSED' ? 'LOAN_CLOSED' : 'PAYMENT_RECEIVED',
+      invoiceType: breakdown.loanStatus === 'READY_FOR_CLOSURE' ? 'LOAN_CLOSED' : 'PAYMENT_RECEIVED',
       oldBalance: oldBalance,
       paidAmount: paymentAmount,
       remainingBalance: breakdown.newRemainingPrincipal,

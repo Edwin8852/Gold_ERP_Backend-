@@ -56,94 +56,18 @@ class LiveRateService {
    * Scrape real-time Chennai gold & silver rates from livechennai.com
    */
   async fetchLiveRates() {
-    logger.info(`[LiveRateService] Fetching Chennai rates from: ${this.sourceUrl}`);
-    console.log(`[LiveRateService] Fetching Chennai Market Rates from livechennai.com ...`);
-
-    const response = await axios.get(this.sourceUrl, {
-      headers: {
-        'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-        'Accept-Language': 'en-IN,en-GB;q=0.9,en;q=0.8,ta;q=0.7',
-        'Cache-Control':   'no-cache',
-        'Pragma':          'no-cache',
-        'Referer':         'https://www.google.com/',
-      },
-      timeout: 15000,
-    });
-
-    const $ = cheerio.load(response.data);
-
-    const toFloat = (str) => {
-      if (!str) return null;
-      const cleaned = str.replace(/[₹,\s]/g, '').trim();
-      const val = parseFloat(cleaned);
-      return isNaN(val) || val <= 0 ? null : val;
-    };
-
-    let gold24k    = null;
-    let gold22k    = null;
-    let silverRate = null;
-
-    // 1. Extract Gold Rates from the main gold table
-    // The gold table has headers: Date | Pure Gold (24 k) 1 Gm | 8 Gm | Standard Gold (22 K) 1 Gm | 8 Gm
-    // The data row usually has 5 columns. We find the first row with a valid date.
-    $('table').each((i, table) => {
-      const text = $(table).text().toLowerCase();
-      if (text.includes('pure gold (24 k)') || text.includes('standard gold (22 k)')) {
-        $(table).find('tr').each((j, tr) => {
-          const cells = $(tr).find('td');
-          if (cells.length >= 5) {
-            const dateStr = $(cells[0]).text().trim();
-            // Check if first column looks like a date (e.g. 30/May/2026)
-            if (dateStr.includes('/') && gold24k === null) {
-              const val24k = toFloat($(cells[1]).text());
-              const val22k = toFloat($(cells[3]).text());
-              if (val24k) gold24k = val24k;
-              if (val22k) gold22k = val22k;
-            }
-          }
-        });
-      }
-      
-      // 2. Extract Silver Rates from the silver table
-      if (text.includes('silver 1 gm') && text.includes('ready silver')) {
-        $(table).find('tr').each((j, tr) => {
-          const cells = $(tr).find('td');
-          if (cells.length >= 3) {
-            const dateStr = $(cells[0]).text().trim();
-            if (dateStr.includes('/') && silverRate === null) {
-              const valAg = toFloat($(cells[1]).text());
-              if (valAg) silverRate = valAg;
-            }
-          }
-        });
-      }
-    });
-
-    if (!gold24k || gold24k < 100) {
-      throw new Error('LIVECHENNAI_INVALID_24K: Could not parse Chennai 24K rate');
-    }
-
-    // Derive lower purities from master 24K (Chennai rate)
-    gold22k = parseFloat((gold24k * (22 / 24)).toFixed(2));
+    const goldRateService = require('../../goldRates/goldRate.service');
+    // We already have a robust scraper in goldRateService.
+    const rates = await goldRateService.getLiveMarketRates();
     
-    // 18K Gold in Chennai carries an alloying premium over the pure 75% (18/24) ratio.
-    // GoodReturns ratio for 18K Chennai is ~76.911% of 24K (e.g. 15960 -> 12275)
-    const gold18k = Math.round(gold24k * 0.7691102);
-
-    console.log(`Market City: ${CITY}`);
-    console.log(`24K Rate: ${gold24k}`);
-    console.log(`22K Rate: ${gold22k}`);
-    console.log(`Silver Rate: ${silverRate}`);
-
-    logger.info(`[LiveRateService] Chennai rates — 24K: ₹${gold24k}, 22K: ₹${gold22k}, 18K: ₹${gold18k}, Ag: ₹${silverRate}`);
-
+    if (!rates) throw new Error('Failed to fetch from unified rate service');
+    
     return {
       city:      CITY,
-      gold24k,
-      gold22k,
-      gold18k,
-      silver:    silverRate,
+      gold24k:   rates.gold_24k || rates.gold24k,
+      gold22k:   rates.gold_22k || rates.gold22k,
+      gold18k:   rates.gold_18k || rates.gold18k,
+      silver:    rates.silver_rate || rates.silverRate,
       updatedAt: new Date(),
       source:    SOURCE_LABEL,
     };
@@ -154,6 +78,8 @@ class LiveRateService {
    */
   async updateRates() {
     try {
+      const goldRateService = require('../../goldRates/goldRate.service');
+      await goldRateService.fetchAndSaveTodaysRate();
       const rates = await this.fetchLiveRates();
 
       const newRate = await LiveRate.create({

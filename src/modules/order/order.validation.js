@@ -1,26 +1,47 @@
 const Joi = require('joi');
 
-/**
- * Order Validation Schemas
- */
 const orderValidation = {
   create: Joi.object({
     customerId: Joi.string().uuid().required(),
-    jewelryType: Joi.string().required(),
-    weight: Joi.number().precision(3).positive().required(),
+    ornamentType: Joi.string().required(),
     purity: Joi.string().required(),
-    goldRateAtPurchase: Joi.number().positive().required(),
-    makingCharges: Joi.number().min(0).optional(),
-    totalAmount: Joi.number().positive().required(),
-    status: Joi.string().valid('Pending', 'Processing', 'Completed', 'Cancelled').optional(),
-  }),
+    grossWeight: Joi.number().precision(3).positive().required(),
+    goldRate: Joi.number().positive().required(),
+    wastagePercent: Joi.number().min(0).optional(),
+    wastageAmount: Joi.number().min(0).optional(),
+    makingChargePerGram: Joi.number().min(0).optional(),
+    makingChargeAmount: Joi.number().min(0).optional(),
+    totalGST: Joi.number().min(0).optional(),
+    finalAmount: Joi.number().positive().required(),
+    advanceAmount: Joi.number().min(0).optional(),
+    balanceAmount: Joi.number().min(0).optional(),
+    status: Joi.string().valid('DRAFT', 'PENDING_ADVANCE', 'ADVANCE_PAID', 'IN_PRODUCTION', 'READY_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').optional(),
+    paymentMethod: Joi.string().valid('ONLINE', 'CASH', 'CARD', 'BANK_TRANSFER').optional(),
+    paymentStatus: Joi.string().valid('PENDING', 'PENDING_CASH_COLLECTION', 'ADVANCE_PAID', 'PAID').optional(),
+    remarks: Joi.string().allow('', null).optional(),
+    deliveryDate: Joi.date().allow('', null).optional(),
+  }).unknown(true),
 
   update: Joi.object({
-    status: Joi.string().valid('Pending', 'Processing', 'Completed', 'Cancelled').optional(),
-    jewelryType: Joi.string().optional(),
-    weight: Joi.number().precision(3).positive().optional(),
-    totalAmount: Joi.number().positive().optional(),
-  }),
+    customerId: Joi.string().uuid().optional(),
+    ornamentType: Joi.string().optional(),
+    purity: Joi.string().optional(),
+    grossWeight: Joi.number().precision(3).positive().optional(),
+    goldRate: Joi.number().positive().optional(),
+    wastagePercent: Joi.number().min(0).optional(),
+    wastageAmount: Joi.number().min(0).optional(),
+    makingChargePerGram: Joi.number().min(0).optional(),
+    makingChargeAmount: Joi.number().min(0).optional(),
+    totalGST: Joi.number().min(0).optional(),
+    finalAmount: Joi.number().positive().optional(),
+    advanceAmount: Joi.number().min(0).optional(),
+    balanceAmount: Joi.number().min(0).optional(),
+    status: Joi.string().valid('DRAFT', 'PENDING_ADVANCE', 'ADVANCE_PAID', 'IN_PRODUCTION', 'READY_FOR_DELIVERY', 'DELIVERED', 'CANCELLED').optional(),
+    paymentMethod: Joi.string().valid('ONLINE', 'CASH', 'CARD', 'BANK_TRANSFER').optional(),
+    paymentStatus: Joi.string().valid('PENDING', 'PENDING_CASH_COLLECTION', 'ADVANCE_PAID', 'PAID').optional(),
+    remarks: Joi.string().allow('', null).optional(),
+    deliveryDate: Joi.date().allow('', null).optional(),
+  }).unknown(true),
 };
 
 module.exports = orderValidation;

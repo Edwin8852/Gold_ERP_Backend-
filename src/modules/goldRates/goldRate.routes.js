@@ -24,4 +24,8 @@ router.get('/live', goldRateController.getLiveRate);
 // POST /api/gold-rate/refresh
 router.post('/refresh', goldRateController.refreshRate);
 
+// ── Admin: rate logs ───────────────────────────────────────────────────────
+// GET /api/gold-rate/logs
+router.get('/logs', goldRateController.getRateLogs);
+
 module.exports = router;

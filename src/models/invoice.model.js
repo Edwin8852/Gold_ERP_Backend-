@@ -61,6 +61,11 @@ module.exports = (sequelize, DataTypes) => {
       defaultValue: DataTypes.NOW,
       field: 'generatedDate'
     },
+    pdfPath: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      field: 'pdfPath'
+    },
     createdBy: {
       type: DataTypes.UUID,
       allowNull: false,
@@ -73,7 +78,7 @@ module.exports = (sequelize, DataTypes) => {
 
   Invoice.associate = (models) => {
     Invoice.belongsTo(models.GoldLoan, { foreignKey: 'loanId', as: 'loan' });
-    Invoice.belongsTo(models.Payment, { foreignKey: 'paymentId', as: 'payment' });
+    Invoice.belongsTo(models.LoanPayment, { foreignKey: 'paymentId', as: 'payment' });
   };
 
   return Invoice;

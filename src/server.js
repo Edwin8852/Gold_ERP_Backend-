@@ -76,6 +76,45 @@ const startServer = async () => {
       }
 
       try {
+        console.log('🔄 [DEV] Verifying Jewelry Orders status ENUM values...');
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'DRAFT';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'PENDING_ADVANCE';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'ADVANCE_PAID';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'IN_PRODUCTION';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'READY_FOR_DELIVERY';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'DELIVERED';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_jewelry_orders_status" ADD VALUE IF NOT EXISTS 'CANCELLED';`).catch(() => {});
+      } catch (e) {
+        // Ignore if not postgres or type doesn't exist yet
+      }
+
+      try {
+        console.log('🔄 [DEV] Verifying Inventory Transaction ENUM values...');
+        await sequelize.query(`ALTER TYPE "enum_inventory_transactions_transaction_type" ADD VALUE IF NOT EXISTS 'STOCK_IN';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_inventory_transactions_transaction_type" ADD VALUE IF NOT EXISTS 'STOCK_OUT';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_inventory_transactions_transaction_type" ADD VALUE IF NOT EXISTS 'ADJUSTMENT';`).catch(() => {});
+      } catch (e) {
+        // Ignore if not postgres or type doesn't exist yet
+      }
+
+      try {
+        console.log('🔄 [DEV] Verifying Jewelry Orders payment ENUMs & columns...');
+        await sequelize.query(`CREATE TYPE "enum_jewelry_orders_paymentMethod" AS ENUM ('ONLINE', 'CASH', 'CARD', 'BANK_TRANSFER');`).catch(() => {});
+        await sequelize.query(`CREATE TYPE "enum_jewelry_orders_paymentStatus" AS ENUM ('PENDING', 'PENDING_CASH_COLLECTION', 'ADVANCE_PAID', 'PAID');`).catch(() => {});
+        
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "paymentMethod" "enum_jewelry_orders_paymentMethod" DEFAULT \'CASH\';').catch(() => {});
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "paymentStatus" "enum_jewelry_orders_paymentStatus" DEFAULT \'PENDING\';').catch(() => {});
+        
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "createdBy" UUID REFERENCES users(id);').catch(() => {});
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "statusChangedBy" UUID REFERENCES users(id);').catch(() => {});
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "paymentConfirmedBy" UUID REFERENCES users(id);').catch(() => {});
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "statusUpdatedAt" TIMESTAMP WITH TIME ZONE;').catch(() => {});
+        await sequelize.query('ALTER TABLE jewelry_orders ADD COLUMN IF NOT EXISTS "paymentUpdatedAt" TIMESTAMP WITH TIME ZONE;').catch(() => {});
+      } catch (e) {
+        // Ignore if not postgres or type doesn't exist yet
+      }
+
+      try {
         console.log('🔄 [DEV] Verifying Chit Scheme new columns...');
         await sequelize.query('ALTER TABLE chit_schemes ADD COLUMN IF NOT EXISTS "is_active" BOOLEAN DEFAULT true;');
         await sequelize.query('ALTER TABLE chit_schemes ADD COLUMN IF NOT EXISTS "launch_date" TIMESTAMP WITH TIME ZONE;');
@@ -83,6 +122,31 @@ const startServer = async () => {
         console.log('✅ Chit Scheme columns verified.');
       } catch (e) {
         console.error('❌ Failed to add Chit Scheme columns:', e.message);
+      }
+
+      try {
+        console.log('🔄 [DEV] Verifying Gold Loan Closure & Release Workflow columns & enums...');
+        await sequelize.query(`ALTER TYPE "enum_gold_loans_status" ADD VALUE IF NOT EXISTS 'PARTIALLY_PAID';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_gold_loans_status" ADD VALUE IF NOT EXISTS 'FULLY_PAID';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_gold_loans_status" ADD VALUE IF NOT EXISTS 'READY_FOR_CLOSURE';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_gold_loans_status" ADD VALUE IF NOT EXISTS 'LOAN_CLOSED';`).catch(() => {});
+        await sequelize.query(`ALTER TYPE "enum_gold_loans_status" ADD VALUE IF NOT EXISTS 'ORNAMENT_RELEASED';`).catch(() => {});
+
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "loan_closed" BOOLEAN DEFAULT false;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "loan_closed_date" TIMESTAMP WITH TIME ZONE;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "loan_closed_by" UUID REFERENCES users(id);');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "closure_remarks" TEXT;');
+        
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "ornament_released" BOOLEAN DEFAULT false;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "ornament_release_date" TIMESTAMP WITH TIME ZONE;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "ornament_released_by" UUID REFERENCES users(id);');
+        
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "received_by_customer" BOOLEAN DEFAULT false;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "received_date" TIMESTAMP WITH TIME ZONE;');
+        await sequelize.query('ALTER TABLE gold_loans ADD COLUMN IF NOT EXISTS "release_notes" TEXT;');
+        console.log('✅ Gold Loan Closure columns verified.');
+      } catch (e) {
+        console.error('❌ Failed to add Gold Loan Closure columns:', e.message);
       }
     }
 

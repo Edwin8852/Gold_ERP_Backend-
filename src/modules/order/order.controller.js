@@ -7,16 +7,27 @@ const ApiResponse = require('../../shared/utils/apiResponse');
 class OrderController {
   async create(req, res, next) {
     try {
-      const order = await OrderService.createOrder(req.body);
-      return ApiResponse.success(res, 'Order placed successfully', order, 201);
+      const order = await OrderService.createOrder(req.body, req.user);
+      return ApiResponse.success(res, 'Order Created Successfully', order, 201);
     } catch (error) {
-      next(error);
+      console.error("JEWELLERY ORDER ERROR:", {
+        message: error.message,
+        stack: error.stack,
+        requestBody: req.body,
+        params: req.params,
+        query: req.query
+      });
+
+      return res.status(error.statusCode || 500).json({
+        success: false,
+        message: error.message
+      });
     }
   }
 
   async getAll(req, res, next) {
     try {
-      const orders = await OrderService.getAllOrders();
+      const orders = await OrderService.getAllOrders(req.query);
       return ApiResponse.success(res, 'Orders retrieved successfully', orders);
     } catch (error) {
       next(error);
@@ -34,7 +45,7 @@ class OrderController {
 
   async update(req, res, next) {
     try {
-      const order = await OrderService.updateOrder(req.params.id, req.body);
+      const order = await OrderService.updateOrder(req.params.id, req.body, req.user);
       return ApiResponse.success(res, 'Order updated successfully', order);
     } catch (error) {
       next(error);
@@ -43,7 +54,7 @@ class OrderController {
 
   async delete(req, res, next) {
     try {
-      await OrderService.deleteOrder(req.params.id);
+      await OrderService.deleteOrder(req.params.id, req.user);
       return ApiResponse.success(res, 'Order removed successfully');
     } catch (error) {
       next(error);

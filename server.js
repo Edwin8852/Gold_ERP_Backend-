@@ -88,6 +88,7 @@ const startServer = async () => {
       await sequelize.query('ALTER TABLE chit_subscribers ADD COLUMN IF NOT EXISTS "lastPaymentDate" TIMESTAMP WITH TIME ZONE;');
       await sequelize.query('ALTER TABLE chit_subscribers ADD COLUMN IF NOT EXISTS "nextDueDate" DATE;');
       console.log('✅ Chit Fund advanced columns & custom types verified successfully.');
+
     } catch (e) {
       console.error('❌ Migration Warning (Ignored):', e.message);
     }

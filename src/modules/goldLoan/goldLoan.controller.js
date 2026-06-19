@@ -49,6 +49,15 @@ class GoldLoanController {
     }
   }
 
+  async getAll(req, res, next) {
+    try {
+      const loans = await goldLoanService.getAllLoans();
+      ApiResponse.success(res, 'All loans retrieved', loans);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   async approve(req, res, next) {
     try {
       const loan = await goldLoanService.approveLoan(req.params.id, req.user.id, req.body);
@@ -64,6 +73,62 @@ class GoldLoanController {
       ApiResponse.success(res, 'Loan rejected', loan);
     } catch (error) {
       next(error);
+    }
+  }
+
+  async close(req, res, next) {
+    try {
+      console.log("[GoldLoanController] Close Loan Route Hit");
+      console.log("[GoldLoanController] User:", req.user);
+      console.log("[GoldLoanController] Loan ID:", req.params.id);
+      
+      const loan = await goldLoanService.closeLoan(req.params.id, req.user.id, req.body.remarks, req);
+      ApiResponse.success(res, 'Loan Closed Successfully', loan);
+    } catch (error) {
+      console.error("[GoldLoanController] Error in close:", error);
+      next(error);
+    }
+  }
+
+  async releaseOrnament(req, res, next) {
+    try {
+      const loan = await goldLoanService.releaseOrnament(req.params.id, req.user.id, req.body.releaseNotes, req);
+      ApiResponse.success(res, 'Ornament released successfully', loan);
+    } catch (error) {
+      next(error);
+    }
+  }
+  async getLedger(req, res, next) {
+    try {
+      const ledger = await goldLoanService.getLoanLedger(req.params.id);
+      ApiResponse.success(res, 'Loan ledger retrieved successfully', ledger);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getGlobalLedger(req, res, next) {
+    try {
+      const isCustomer = req.user.role === 'CUSTOMER';
+      const customerId = isCustomer ? req.user.id : null; // Actually need to get customer profile id
+      const ledger = await goldLoanService.getGlobalLedger(customerId, req.user);
+      ApiResponse.success(res, 'Global ledger retrieved successfully', ledger);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  async getDetails(req, res, next) {
+    try {
+      console.log(`[GoldLoanController] Fetching details for Loan ID: ${req.params.id}`);
+      const details = await goldLoanService.getLoanDetails(req.params.id, req.user);
+      ApiResponse.success(res, 'Loan details retrieved successfully', details);
+    } catch (error) {
+      console.error(`[GoldLoanController] Error fetching details for Loan ID: ${req.params.id} -`, error);
+      if (error.message === 'Loan not found') {
+        return res.status(404).json({ success: false, message: 'Loan Not Found' });
+      }
+      return res.status(500).json({ success: false, message: 'Unexpected Server Error', details: error.message });
     }
   }
 }

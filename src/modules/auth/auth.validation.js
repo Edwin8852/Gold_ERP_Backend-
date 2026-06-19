@@ -23,6 +23,14 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(6, 'New password must be at least 6 characters')
 });
 
+const updateProfileSchema = z.object({
+  firstName: z.string().min(1, 'First name is required').regex(/^[A-Za-z\s]+$/, 'First name can only contain letters'),
+  lastName: z.string().min(1, 'Last name is required').regex(/^[A-Za-z\s]+$/, 'Last name can only contain letters'),
+  email: z.string().email('Invalid email address format').min(1, 'Email is required'),
+  mobile: z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits'),
+  profileImage: z.string().optional().nullable().or(z.literal(''))
+});
+
 exports.validateRegister = (req, res, next) => {
   try {
     req.body = registerSchema.parse(req.body);
@@ -57,6 +65,21 @@ exports.validateChangePassword = (req, res, next) => {
     return res.status(400).json({
       success: false,
       message: 'Validation failed',
+      errors: error.errors
+    });
+  }
+};
+
+exports.validateUpdateProfile = (req, res, next) => {
+  try {
+    req.body = updateProfileSchema.parse(req.body);
+    next();
+  } catch (error) {
+    // Format the first Zod error nicely for the frontend toast
+    const firstError = error.errors && error.errors.length > 0 ? error.errors[0].message : 'Invalid profile data';
+    return res.status(400).json({
+      success: false,
+      message: firstError,
       errors: error.errors
     });
   }

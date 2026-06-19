@@ -1,4 +1,4 @@
-const { LoanPayment, LoanPaymentHistory, LoanReceipt, GoldLoan, Customer, User, sequelize } = require('../../models');
+const { LoanPayment, LoanPaymentHistory, LoanReceipt, GoldLoan, Customer, User, LoanLedgerEntry, sequelize } = require('../../models');
 const AppError = require('../../shared/utils/AppError');
 const loanLedgerService = require('./loanLedger.service');
 const loanHistoryService = require('./loanHistory.service');
@@ -119,23 +119,27 @@ class LoanPaymentService {
       let paymentStatus = 'ACTIVE';
       let loanStatus = 'ACTIVE';
 
+      console.log(`[DEBUG_PAYMENT] AmountPaid: ${amountPaid}, RP: ${outstandingPrincipal}, IA: ${outstandingInterest}, PA: ${outstandingPenalty}`);
+      console.log(`[DEBUG_PAYMENT] New RP: ${newRemainingPrincipal}, New IA: ${newInterestAmount}, New PA: ${newPenaltyAmount}`);
+      const sumRemaining = newRemainingPrincipal + newInterestAmount + newPenaltyAmount;
+      console.log(`[DEBUG_PAYMENT] Sum Remaining: ${sumRemaining}`);
+
       if (newRemainingPrincipal + newInterestAmount + newPenaltyAmount <= 0) {
         paymentStatus = 'FULLY_PAID';
-        loanStatus = 'CLOSED';
+        loanStatus = 'READY_FOR_CLOSURE';
       } else if (principalPaid === 0 && interestPaid > 0 && penaltyPaid > 0) {
         paymentStatus = 'PENALTY_PAID';
       } else if (principalPaid === 0 && interestPaid > 0) {
         paymentStatus = 'INTEREST_ONLY_PAID';
       } else if (principalPaid > 0) {
         paymentStatus = 'PARTIAL_PAID';
+        loanStatus = 'ACTIVE'; // Was PARTIALLY_PAID
       }
 
-      // If there's still a remaining principal and it was overdue or past due, it remains overdue
+      // If there's still a remaining principal and it was overdue or past due, it remains ACTIVE (or OVERDUE if we kept it, but we are standardizing to ACTIVE)
       const isOverdue = loan.dueDate && new Date() > new Date(loan.dueDate);
-      if (loanStatus !== 'CLOSED') {
-        if (isOverdue || loan.status === 'OVERDUE') {
-          loanStatus = 'OVERDUE';
-        }
+      if (loanStatus !== 'READY_FOR_CLOSURE' && loanStatus !== 'CLOSED' && loanStatus !== 'ORNAMENT_RELEASED') {
+        loanStatus = 'ACTIVE';
       }
 
       const invoiceNumber = `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -180,10 +184,48 @@ class LoanPaymentService {
       // 11. Log LoanHistory record (general loan activities)
       await loanHistoryService.logHistory(
         loan.id,
-        loanStatus === 'CLOSED' ? 'LOAN_CLOSED' : 'PAYMENT_RECEIVED',
+        loanStatus === 'READY_FOR_CLOSURE' ? 'READY_FOR_CLOSURE' : loanStatus === 'CLOSED' ? 'CLOSED' : 'PAYMENT_RECEIVED',
         `Received ${paymentData.paymentType} of ₹${amountPaid.toFixed(2)} via ${paymentData.paymentMethod}. Remaining principal: ₹${newRemainingPrincipal.toFixed(2)}`,
         { transaction: t }
       );
+
+      // --- CREATE NEW LEDGER ENTRIES ---
+      let runningBalance = parseFloat(loan.remainingPrincipal || 0);
+
+      if (interestPaid > 0) {
+        await LoanLedgerEntry.create({
+          loanId: loan.id,
+          customerId: loan.customerId,
+          transactionType: 'INTEREST_PAYMENT',
+          amount: interestPaid,
+          balanceAfter: runningBalance,
+          remarks: `Interest Payment via ${paymentData.paymentMethod}`,
+        }, { transaction: t });
+      }
+
+      if (penaltyPaid > 0) {
+        await LoanLedgerEntry.create({
+          loanId: loan.id,
+          customerId: loan.customerId,
+          transactionType: 'PENALTY',
+          amount: penaltyPaid,
+          balanceAfter: runningBalance,
+          remarks: `Penalty Payment via ${paymentData.paymentMethod}`,
+        }, { transaction: t });
+      }
+
+      if (principalPaid > 0) {
+        runningBalance = parseFloat((runningBalance - principalPaid).toFixed(2));
+        await LoanLedgerEntry.create({
+          loanId: loan.id,
+          customerId: loan.customerId,
+          transactionType: 'PRINCIPAL_PAYMENT',
+          amount: principalPaid,
+          balanceAfter: runningBalance, // Balance drops on principal payment
+          remarks: `Principal Payment via ${paymentData.paymentMethod}`,
+        }, { transaction: t });
+      }
+      // ---------------------------------
 
       const newTotalPaid = parseFloat(((parseFloat(loan.totalPaid) || 0) + amountPaid).toFixed(2));
       const newTotalPrincipalPaid = parseFloat(((parseFloat(loan.totalPrincipalPaid) || 0) + principalPaid).toFixed(2));
@@ -221,7 +263,7 @@ class LoanPaymentService {
         loanId: loan.id,
         paymentId: payment.id,
         invoiceNumber,
-        invoiceType: loanStatus === 'CLOSED' ? 'LOAN_CLOSED' : 'PAYMENT_RECEIVED',
+        invoiceType: loanStatus === 'READY_FOR_CLOSURE' || loanStatus === 'CLOSED' ? 'LOAN_CLOSED' : 'PAYMENT_RECEIVED',
         oldBalance: outstandingPrincipal,
         paidAmount: amountPaid,
         remainingBalance: newRemainingPrincipal,
@@ -232,6 +274,34 @@ class LoanPaymentService {
       }, t);
 
       await t.commit();
+
+      // Trigger Emails & Notifications
+      try {
+        const customer = await Customer.findByPk(loan.customerId);
+        if (customer && customer.email) {
+          const emailService = require('../notification/email/email.service');
+          // 1. Payment Receipt Email
+          emailService.sendPaymentReceiptEmail(customer, amountPaid, invoiceNumber, { pdfPath: null }); // PDF is generated async, maybe won't be attached immediately, but that's fine or we pass invoice if we have it
+          
+          // 2. Ready For Closure Email
+          if (loanStatus === 'READY_FOR_CLOSURE') {
+            emailService.sendReadyForClosureEmail(customer, loan.loanNumber);
+          }
+        }
+
+        // Dashboard Notification is handled by emailService now for these two events, but let's keep the existing logic as well or rely on the email service. 
+        // We'll keep existing to avoid breaking anything not covered by email service.
+        if (loanStatus === 'READY_FOR_CLOSURE' && loan.status !== 'READY_FOR_CLOSURE') {
+          const notificationService = require('../notification/notification.service');
+          await notificationService.createNotification({
+            customerId: loan.customerId,
+            type: 'LOAN_READY_FOR_CLOSURE',
+            message: `Your loan ${loan.loanNumber} has been fully repaid and is ready for closure. Please visit the branch to collect your ornament.`
+          });
+        }
+      } catch (err) {
+        console.error('[LoanPaymentService] Failed to send email/notification:', err.message);
+      }
 
       // 15. Generate printable PDF receipt and save details post-commit (async)
       try {

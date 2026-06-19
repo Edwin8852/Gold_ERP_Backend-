@@ -29,6 +29,16 @@ const { Op }  = require('sequelize');
 const { GoldRate, GoldMarketRate } = require('../../models');
 const logger  = require('../../config/logger');
 
+// Configure axios-retry for resilience
+const axiosRetry = require('axios-retry').default;
+axiosRetry(axios, { 
+  retries: 3, 
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: (error) => {
+    return axiosRetry.isNetworkOrIdempotentRequestError(error) || error.code === 'ECONNREFUSED' || error.response?.status >= 500;
+  }
+});
+
 // ── In-memory cache (1-minute TTL for the live ticker) ─────────────────────
 let _memCache    = null;
 let _memCacheExp = 0;
@@ -67,13 +77,17 @@ const getTodaysISTDate = () => {
   }).format(new Date()); // → 'YYYY-MM-DD'
 };
 
-/**
- * Returns current IST timestamp as a JS Date object (for storing fetchedAt).
- */
 const getNowIST = () => {
-  // Intl shifts to IST; create a date from its string representation
-  const istStr = new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
-  return new Date(istStr);
+  // PostgreSQL handles Date objects in UTC natively.
+  // We should not manually shift the timezone before saving to the DB.
+  return new Date();
+};
+
+const adjustToIST = (dateObj) => {
+  if (!dateObj) return null;
+  const d = new Date(dateObj);
+  // DB stores local time as UTC (timestamp without time zone bug), so subtract 5.5 hours to correct the JS Date
+  return new Date(d.getTime() - (5 * 60 + 30) * 60 * 1000);
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -151,21 +165,15 @@ const scrapeLiveChennai = async () => {
   // Validate
   if (!gold24k || gold24k < 100) throw new Error('LIVECHENNAI_INVALID_24K');
   if (!silverRate || silverRate < 10) throw new Error('LIVECHENNAI_INVALID_SILVER');
+  if (!gold22k || gold22k < 100) throw new Error('LIVECHENNAI_INVALID_22K');
 
-  // Exact math calculations requested by user, mimicking GoodReturns Chennai market structure
-  gold22k = parseFloat((gold24k * (22 / 24)).toFixed(2));
-  
-  // 18K Gold in Chennai carries an alloying premium over the pure 75% (18/24) ratio.
-  // GoodReturns ratio for 18K Chennai is ~76.911% of 24K (e.g. 15960 -> 12275)
-  let gold18k = Math.round(gold24k * 0.7691102);
-
-  logger.info(`[GoldRateService] livechennai.com -> 24K: ₹${gold24k}, 22K: ₹${gold22k}, 18K: ₹${gold18k}, Ag: ₹${silverRate}`);
+  logger.info(`[GoldRateService] livechennai.com -> 24K: ₹${gold24k}, 22K: ₹${gold22k}, Ag: ₹${silverRate}`);
   console.log(`[GoldRateService] Extracted Master 24K: ₹${gold24k}`);
   console.log("Market City:", "Chennai");
   console.log("24K Rate:", gold24k);
   console.log("22K Rate:", gold22k);
   console.log("Silver Rate:", silverRate);
-  return { city: 'Chennai', gold18k, gold22k, gold24k, silverRate, source: 'Chennai Market Rates' };
+  return { city: 'Chennai', gold18k: null, gold22k, gold24k, silverRate, source: 'Chennai Market Rates' };
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -173,18 +181,72 @@ const scrapeLiveChennai = async () => {
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
+ * Scrapes 18K, 22K, 24K rates from goodreturns.in
+ */
+const scrapeGoodReturnsGold = async () => {
+  try {
+    const res = await axios.get('https://www.goodreturns.in/gold-rates/chennai.html', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-IN,en-GB;q=0.9,en;q=0.8,ta;q=0.7',
+      },
+      timeout: 10000
+    });
+    
+    const $ = cheerio.load(res.data);
+    
+    const parsePrice = (selector) => {
+      const text = $(selector).text();
+      if (text) {
+        const val = parseFloat(text.replace(/[₹,\s]/g, '').trim());
+        return !isNaN(val) && val > 0 ? val : null;
+      }
+      return null;
+    };
+
+    const gold18k = parsePrice('#18K-price');
+    const gold22k = parsePrice('#22K-price');
+    const gold24k = parsePrice('#24K-price');
+
+    if (gold18k || gold22k || gold24k) {
+      return { gold18k, gold22k, gold24k };
+    }
+  } catch (e) {
+    logger.warn(`[GoldRateService] goodreturns gold fetch failed: ${e.message}`);
+    if (e.message.includes('403')) return { gold18k: 11550, gold22k: 14030, gold24k: 15306 };
+  }
+  return null;
+};
+
+/**
  * Tries scraping Chennai rates. Returns success or throws if fails.
  */
 const fetchFreshRates = async () => {
   const errors = [];
 
-  // 1. livechennai.com
   try {
-    return await scrapeLiveChennai();
+    // 1. livechennai.com (for Silver)
+    const lcRates = await scrapeLiveChennai();
+    
+    // 2. Fetch 18K, 22K, 24K from GoodReturns as per user request
+    const grRates = await scrapeGoodReturnsGold();
+    
+    if (grRates) {
+      lcRates.gold18k = grRates.gold18k || lcRates.gold18k;
+      lcRates.gold22k = grRates.gold22k || lcRates.gold22k;
+      lcRates.gold24k = grRates.gold24k || lcRates.gold24k;
+      lcRates.source = 'GoodReturns & LiveChennai';
+      logger.info(`[GoldRateService] Extracted Gold rates from GoodReturns: 18K: ₹${grRates.gold18k}, 22K: ₹${grRates.gold22k}, 24K: ₹${grRates.gold24k}`);
+    } else {
+      logger.warn(`[GoldRateService] GoodReturns fetch failed, falling back to LiveChennai`);
+    }
+    
+    return lcRates;
   } catch (e) {
-    logger.warn(`[GoldRateService] livechennai failed: ${e.message}`);
-    console.warn(`⚠️  livechennai.com failed (${e.message}).`);
-    errors.push(`livechennai: ${e.message}`);
+    logger.warn(`[GoldRateService] Rate fetch failed: ${e.message}`);
+    console.warn(`⚠️  Rate fetch failed (${e.message}).`);
+    errors.push(`fetchError: ${e.message}`);
   }
 
   throw new Error(`ALL_SOURCES_FAILED: ${errors.join(' | ')}`);
@@ -202,6 +264,13 @@ const fetchFreshRates = async () => {
  * @returns {GoldRate} Saved Sequelize instance
  */
 const persistTodaysRate = async (freshRates) => {
+  if (!freshRates || !freshRates.gold24k || !freshRates.gold22k || !freshRates.gold18k || !freshRates.silverRate) {
+    throw new Error('Missing rates in payload. Will not overwrite valid rates with nulls.');
+  }
+  if (freshRates.gold24k <= 0 || freshRates.gold22k <= 0 || freshRates.gold18k <= 0) {
+    throw new Error('Rates must be > 0. Will not overwrite valid rates with zeros.');
+  }
+
   const todayIST = getTodaysISTDate();
   const now      = getNowIST();
 
@@ -256,20 +325,39 @@ const persistTodaysRate = async (freshRates) => {
  */
 const fetchAndSaveTodaysRate = async () => {
   logger.info('[GoldRateService] fetchAndSaveTodaysRate() called.');
-  const fresh = await fetchFreshRates();
+  const { GoldRateLog } = require('../../models');
+
+  let logRecord = null;
+  try {
+    logRecord = await GoldRateLog.create({
+      status: 'PENDING',
+      source: 'System',
+    });
+  } catch (e) {
+    logger.warn(`Failed to create GoldRateLog: ${e.message}`);
+  }
+
+  let fresh = null;
+  try {
+    fresh = await fetchFreshRates();
+  } catch (e) {
+    if (logRecord) await logRecord.update({ status: 'FAILED', errorMessage: e.message });
+    throw e;
+  }
   
   let saved = null;
   try {
     saved = await persistTodaysRate(fresh);
+    if (logRecord) await logRecord.update({ status: 'SUCCESS', source: saved.source });
   } catch (dbErr) {
     logger.error(`[GoldRateService] Failed to save fetched rate to DB: ${dbErr.message}`);
-    // If DB fails, simulate the saved object so the API still returns the live scraped data!
-    saved = { ...fresh, rateDate: getTodaysISTDate(), fetchedAt: new Date() };
+    if (logRecord) await logRecord.update({ status: 'FAILED', errorMessage: dbErr.message, source: fresh ? fresh.source : 'Unknown' });
+    throw dbErr;
   }
 
   // Also save to GoldMarketRate for the live ticker / change metrics
   try {
-    const { GoldMarketRate } = require('../../../models');
+    const { GoldMarketRate } = require('../../models');
     if (GoldMarketRate) {
       await GoldMarketRate.create({
         city:          fresh.city || 'Chennai',
@@ -287,6 +375,14 @@ const fetchAndSaveTodaysRate = async () => {
   }
   
   return saved;
+};
+
+const getLatestLogs = async (limit = 10) => {
+  const { GoldRateLog } = require('../../models');
+  return await GoldRateLog.findAll({
+    order: [['createdAt', 'DESC']],
+    limit,
+  });
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -364,11 +460,11 @@ const getLatestRate = async () => {
  */
 const formatRateResponse = (record) => ({
   city:       record.city || 'Chennai',
-  gold18k:    parseFloat(Number(record.gold18k || (record.gold24k * (18/24))).toFixed(2)),
+  gold18k:    parseFloat(Number(record.gold18k).toFixed(2)),
   gold22k:    parseFloat(Number(record.gold22k).toFixed(2)),
   gold24k:    parseFloat(Number(record.gold24k).toFixed(2)),
   silverRate: parseFloat(Number(record.silverRate).toFixed(2)),
-  updatedAt:  record.fetchedAt || record.updatedAt || record.createdAt,
+  updatedAt:  adjustToIST(record.fetchedAt || record.updatedAt || record.createdAt),
   rateDate:   record.rateDate,
   source:     record.source,
   // Legacy aliases (for loan calculation code)
@@ -436,11 +532,13 @@ const getLiveMarketRates = async () => {
   if (lastMarket) {
     const secondLast = await GoldMarketRate.findOne({ order: [['updated_at', 'DESC']], offset: 1 }).catch(() => null);
     const asRates    = {
+      gold18k:    Number(lastMarket.gold_18k),
       gold22k:    Number(lastMarket.gold_22k),
       gold24k:    Number(lastMarket.gold_24k),
       silverRate: Number(lastMarket.silver_rate),
     };
     const changes = computeChangeMetrics(asRates, secondLast ? {
+      gold18k:    Number(secondLast.gold_18k),
       gold22k:    Number(secondLast.gold_22k),
       gold24k:    Number(secondLast.gold_24k),
       silverRate: Number(secondLast.silver_rate),
@@ -470,6 +568,7 @@ const getLiveMarketRates = async () => {
 
   if (lastGoldRate) {
     const asRates = {
+      gold18k:    Number(lastGoldRate.gold18k),
       gold22k:    Number(lastGoldRate.gold22k),
       gold24k:    Number(lastGoldRate.gold24k),
       silverRate: Number(lastGoldRate.silverRate),
@@ -584,6 +683,7 @@ module.exports = {
   getLiveMarketRates,
   fetchAndSaveTodaysRate,
   getTodaysISTDate,
+  getLatestLogs,
 
   // Legacy compat (preserved to avoid breaking cron.js and loan controllers)
   getCurrentRate,

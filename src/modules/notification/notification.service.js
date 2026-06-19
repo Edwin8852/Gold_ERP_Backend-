@@ -30,14 +30,15 @@ class NotificationService {
         WhatsAppService.sendWhatsAppNotification(customer.mobileNumber, message).catch(console.error);
       }
       
-      // Send Email
+      // Send Email (for generic types if not handled directly by the module services)
       if (customer.email) {
-        if (type === 'GOLD_LOAN_PRE_APPROVED') {
-          EmailService.sendGoldLoanPreApprovalEmail(customer, message).catch(console.error);
-        } else if (type === 'KYC_UPLOAD_REQUEST') {
+        if (type === 'KYC_UPLOAD_REQUEST') {
           EmailService.sendKycUploadRequestEmail(customer, message).catch(console.error);
+        } else if (type === 'GOLD_LOAN_PRE_APPROVED') {
+           // Skip here, it's now handled natively in the goldLoan service with accurate parameters
         } else {
-          EmailService.sendEmail(customer.email, `SDRS Gold Notification: ${type.replace(/_/g, ' ')}`, `<p>${message}</p>`).catch(console.error);
+          // Fallback generic notification wrapper
+          // EmailService.sendEmail(customer.email, `SDRS Gold Notification: ${type.replace(/_/g, ' ')}`, `<p>${message}</p>`).catch(console.error);
         }
       }
     }

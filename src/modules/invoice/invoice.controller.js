@@ -1,6 +1,6 @@
 const invoiceService = require('./invoice.service');
 const pdfService = require('../../shared/utils/pdf.service');
-const { GoldLoan, Customer, Payment } = require('../../models');
+const { GoldLoan, Customer, Payment, LoanPayment } = require('../../models');
 
 const getInvoices = async (req, res) => {
   try {
@@ -40,7 +40,7 @@ const downloadPDF = async (req, res) => {
 
     let payment = null;
     if (invoice.paymentId) {
-      payment = await Payment.findByPk(invoice.paymentId);
+      payment = await LoanPayment.findByPk(invoice.paymentId);
     }
 
     const pdfBuffer = await pdfService.generateLoanInvoice(invoice, loan, customer, payment);
@@ -56,16 +56,43 @@ const downloadPDF = async (req, res) => {
 
 const downloadPDFByNumber = async (req, res) => {
   try {
-    const { Invoice } = require('../../models');
-    const invoice = await Invoice.findOne({ where: { invoiceNumber: req.params.invoiceNumber } });
-    if (!invoice) return res.status(404).json({ success: false, message: 'Invoice not found' });
+    const { Invoice, LoanPayment, Payment, GoldLoan, Customer } = require('../../models');
+    let invoice = await Invoice.findOne({ where: { invoiceNumber: req.params.invoiceNumber } });
+    
+    let payment = null;
+    if (!invoice) {
+      // Check if it's a legacy payment that has an invoiceNumber but no Invoice row
+      payment = await LoanPayment.findOne({ where: { invoiceNumber: req.params.invoiceNumber } });
+      
+      // Also check the Customer Payments table (`Payment`)
+      if (!payment && Payment) {
+         payment = await Payment.findOne({ where: { invoiceNumber: req.params.invoiceNumber } });
+      }
+
+      if (payment) {
+        invoice = {
+          invoiceNumber: payment.invoiceNumber,
+          invoiceType: 'PAYMENT_RECEIPT',
+          loanId: payment.loanId,
+          paymentId: payment.id,
+          oldBalance: payment.principalPaid ? payment.principalPaid + (payment.remainingPrincipal || 0) : 0,
+          paidAmount: payment.paymentAmount,
+          remainingBalance: payment.remainingPrincipal || 0,
+          interestAmount: payment.interestPaid || 0,
+          pendingAmount: 0,
+          totalPaid: payment.paymentAmount,
+          generatedDate: payment.paymentDate || payment.createdAt
+        };
+      } else {
+        return res.status(404).json({ success: false, message: 'Invoice not found' });
+      }
+    }
 
     const loan = await GoldLoan.findByPk(invoice.loanId);
     const customer = await Customer.findByPk(loan.customerId);
 
-    let payment = null;
-    if (invoice.paymentId) {
-      payment = await Payment.findByPk(invoice.paymentId);
+    if (invoice.paymentId && !payment) {
+      payment = await LoanPayment.findByPk(invoice.paymentId);
     }
 
     const pdfBuffer = await pdfService.generateLoanInvoice(invoice, loan, customer, payment);

@@ -45,7 +45,9 @@ class GoldFinanceController {
 
     async close(req, res, next) {
         try {
-            const result = await GoldFinanceService.closeLoan(req.params.id);
+            console.log("[GoldFinanceController] Redirecting legacy close to GoldLoanService");
+            const goldLoanService = require('../goldLoan/goldLoan.service');
+            const result = await goldLoanService.closeLoan(req.params.id, req.user.id, req.body.remarks);
             return ApiResponse.success(res, 'Loan closed successfully', result);
         } catch (error) {
             next(error);

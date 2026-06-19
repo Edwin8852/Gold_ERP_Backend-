@@ -264,13 +264,12 @@ class CustomerService {
     // Active loans
     const { LoanPayment } = require('../../models');
     const loans = await GoldLoan.findAll({ 
-      where: { customerId: customer.id, status: 'ACTIVE' },
+      where: { customerId: customer.id },
       include: [
         { model: Payment, as: 'payments' },
         { model: LoanPayment, as: 'loanPayments' }
       ],
-      order: [['createdAt', 'DESC']],
-      limit: 5
+      order: [['createdAt', 'DESC']]
     });
 
     const loansWithPayments = loans.map(loan => {

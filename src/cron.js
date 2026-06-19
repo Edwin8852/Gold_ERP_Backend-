@@ -14,7 +14,7 @@ const initCronJobs = () => {
     console.log(`⏰ [Cron] Running Gold Rate Update at ${now} IST ...`);
     try {
       const saved = await goldRateService.fetchAndSaveTodaysRate();
-      console.log(`✅ [Cron] Gold Rate saved — 22K: ₹${saved.gold22k}, 24K: ₹${saved.gold24k}, Ag: ₹${saved.silverRate} (source: ${saved.source})`);
+      console.log(`✅ [Cron] Gold Rate saved — 24K: ₹${saved.gold24k}, 22K: ₹${saved.gold22k}, 18K: ₹${saved.gold18k}, Ag: ₹${saved.silverRate} (source: ${saved.source})`);
     } catch (err) {
       console.error(`❌ [Cron] Gold Rate Update failed: ${err.message}`);
     }

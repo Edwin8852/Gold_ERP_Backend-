@@ -8,15 +8,19 @@ class ValuationService {
     const currentRate = await goldRateService.getCurrentRate();
     if (!currentRate) throw new Error('Gold rates unavailable');
 
-    const purityPercentage = purity === '24K' ? 1 : (purity === '22K' ? 0.916 : 0.75);
-    const baseRate = currentRate.gold24KRate; // Use 24K as base and multiply by purity
+    let baseRate = 0;
+    if (purity === '24K') baseRate = currentRate.gold24k || currentRate.gold24KRate;
+    else if (purity === '22K') baseRate = currentRate.gold22k || currentRate.gold22KRate;
+    else if (purity === '18K') baseRate = currentRate.gold18k || currentRate.gold18KRate;
     
-    const goldValue = weight * baseRate * purityPercentage;
+    if (!baseRate) throw new Error(`Rate for purity ${purity} unavailable`);
+
+    const goldValue = weight * baseRate;
 
     return {
       weight,
       purity,
-      purityPercentage,
+      purityPercentage: 1, // Kept for schema compat, actual rate is already adjusted
       goldRateSnapshot: baseRate,
       goldValue
     };

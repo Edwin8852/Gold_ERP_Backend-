@@ -95,16 +95,31 @@ const getProfile = async (req, res) => {
 
 const updateProfile = async (req, res) => {
   try {
+    console.log(`[Auth Controller] Update profile request for user ID: ${req.user.id}`);
+    console.log(`[Auth Controller] Incoming payload:`, req.body);
+
     const user = await authService.updateProfile(req.user.id, req.body);
+
+    console.log(`[Auth Controller] Profile successfully updated for user ID: ${req.user.id}`);
     return res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
       user: user,
     });
   } catch (error) {
-    return res.status(400).json({
+    console.error('[Update Profile Error]', error.message, error);
+    
+    if (error.message === 'User not found') {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const isValidationError = error.message.includes('already in use') || error.message.includes('Validation') || error.name === 'SequelizeValidationError';
+    const statusCode = isValidationError ? 400 : 500;
+    const errorMessage = isValidationError ? error.message : 'Internal server error while updating profile.';
+
+    return res.status(statusCode).json({
       success: false,
-      message: error.message,
+      message: errorMessage,
     });
   }
 };

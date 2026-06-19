@@ -25,6 +25,8 @@ const kycRoutes = require('../modules/kyc/kyc.routes');
 const walkInRoutes = require('../modules/walkIn/walkIn.routes');
 const loanPaymentRoutes = require('../modules/loanPayments/loanPayment.routes');
 const chitPaymentRoutes = require('../modules/chitPayments/chitPayment.routes');
+const inventoryRoutes = require('../modules/inventory/inventory.routes');
+const settingsRoutes = require('../modules/settings/settings.routes');
 
 router.use('/auth', authRoutes);
 router.use('/kyc', kycRoutes);
@@ -54,5 +56,8 @@ router.use('/gold-loans', goldLoanRoutes);
 router.use('/schemes', schemeRoutes);
 router.use('/loan-payments', loanPaymentRoutes);
 router.use('/chit-payments', chitPaymentRoutes);
+router.use('/inventory', inventoryRoutes);
+router.use('/settings', settingsRoutes);
+
 
 module.exports = router;

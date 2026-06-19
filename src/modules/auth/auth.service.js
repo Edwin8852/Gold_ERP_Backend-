@@ -90,11 +90,23 @@ const updateProfile = async (userId, updateData) => {
   const allowedUpdates = ['firstName', 'lastName', 'email', 'mobile', 'profileImage'];
   Object.keys(updateData).forEach(key => {
     if (allowedUpdates.includes(key) && updateData[key] !== undefined) {
-      user[key] = updateData[key];
+      // Convert empty strings to null for unique/optional fields
+      if (updateData[key] === '') {
+        user[key] = null;
+      } else {
+        user[key] = updateData[key];
+      }
     }
   });
 
-  await user.save();
+  try {
+    await user.save();
+  } catch (error) {
+    if (error.name === 'SequelizeUniqueConstraintError') {
+      throw new Error('Email or mobile number is already in use by another account.');
+    }
+    throw new Error(error.errors?.[0]?.message || error.message || 'Validation error');
+  }
   const userResponse = user.toJSON();
   delete userResponse.password;
   return userResponse;
